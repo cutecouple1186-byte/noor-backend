@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon.svg">
+<title>NOOR AI</title>
+<style>
+:root{--p:#7c4dff;--pl:#b388ff;--card:#12061f;--line:#2a1545;--tx:#f3eaff;--mut:#9a86b8}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{background:radial-gradient(900px 500px at 50% -5%,#2f0b5e 0%,#050008 62%);color:var(--tx);
+font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;
+padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);overflow:hidden}
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;gap:8px}
+.logo{font-weight:700;letter-spacing:.18em;color:var(--pl)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.btn{background:transparent;border:1px solid var(--p);color:var(--tx);border-radius:999px;padding:7px 12px;font-size:13px;cursor:pointer}
+.btn.on{background:var(--p)}
+.stage{display:flex;flex-direction:column;align-items:center;padding:4px 0 6px}
+#orb{position:relative;width:150px;height:150px;border:0;background:none;padding:0;cursor:pointer}
+#ring{position:absolute;inset:0;border-radius:50%;border:2px solid var(--pl);box-shadow:0 0 30px #7c4dff88,inset 0 0 30px #7c4dff55}
+#face{position:absolute;inset:8px;border-radius:50%;overflow:hidden;background:radial-gradient(circle at 35% 30%,#b388ff,#4a1fa8 55%,#12061f);
+display:flex;align-items:center;justify-content:center;font-size:44px}
+#face img{width:100%;height:100%;object-fit:cover;display:block}
+.listening #ring{animation:pulse 1.1s infinite}
+.speaking #ring{animation:pulse .6s infinite}
+.thinking #ring{animation:spin 1.2s linear infinite;border-style:dashed}
+@keyframes pulse{50%{transform:scale(1.07);box-shadow:0 0 50px #b388ffaa,inset 0 0 40px #7c4dff88}}
+@keyframes spin{to{transform:rotate(360deg)}}
+#status{margin-top:8px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--pl);min-height:18px;text-align:center;padding:0 12px}
+#wave{display:flex;align-items:center;justify-content:center;gap:4px;height:46px;margin-top:4px}
+#wave i{display:block;width:4px;height:4px;border-radius:3px;background:var(--pl)}
+#log{flex:1;overflow-y:auto;padding:8px 14px;display:flex;flex-direction:column;gap:8px}
+.m{max-width:86%;padding:10px 13px;border-radius:16px;font-size:15px;line-height:1.45;white-space:pre-wrap;word-wrap:break-word}
+.m.me{align-self:flex-end;background:var(--p)}
+.m.noor{align-self:flex-start;background:var(--card);border:1px solid var(--line)}
+.m.sys{align-self:center;color:var(--mut);font-size:12px;text-align:center}
+.m a{color:var(--pl);font-weight:600}
+#confirm{display:none;gap:10px;padding:6px 14px}
+#confirm .btn{flex:1;padding:11px}
+#bar{display:flex;gap:8px;padding:8px 14px 12px}
+#txt{flex:1;background:var(--card);border:1px solid var(--line);color:var(--tx);border-radius:999px;padding:12px 16px;font-size:16px;outline:none}
+#send{background:var(--p);border:0;color:#fff;border-radius:50%;width:46px;height:46px;font-size:18px}
+#overlay{position:fixed;inset:0;background:#000c;display:none;align-items:center;justify-content:center;padding:20px;z-index:5}
+#box{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;max-width:420px;width:100%;max-height:80vh;overflow:auto}
+#box h3{margin:0 0 8px}#box li{margin:6px 0;color:var(--tx)}
+</style>
+</head>
+<body>
+<header>
+<div class="logo">NOOR AI</div>
+<div class="chips">
+<button class="btn" id="hands">Hey Noor: OFF</button>
+<button class="btn" id="lang">Urdu / Hindi</button>
+<button class="btn" id="mem">Memories</button>
+</div>
+</header>
+<div class="stage" id="stage">
+<button id="orb" aria-label="Tap to talk"><div id="ring"></div><div id="face"><img id="av" src="/avatar.png" alt="" onerror="this.remove();document.getElementById('face').textContent='✦'"></div></button>
+<div id="status">Tap the orb and speak</div>
+<div id="wave"></div>
+</div>
+<div id="log"></div>
+<div id="confirm"><button class="btn" id="yes">Haan</button><button class="btn" id="no">Nahi</button></div>
+<div id="bar"><input id="txt" placeholder="Type a message to NOOR" autocomplete="off"><button id="send" aria-label="Send">➤</button></div>
+<div id="overlay"><div id="box"></div></div>
+<script>
+(function(){
+var $=function(id){return document.getElementById(id)};
+var LANGS=[["Urdu / Hindi","hi-IN"],["Urdu (PK)","ur-PK"],["English","en-IN"]];
+var WAKE=/(hey|hay|hi|he|ae|ai|है|हे|हेय|ऐ|ہے|اے|ہی)\s*(noor|nur|nour|नूर|نور)/;
+var STOP=/stop listening|\bstop\b|band karo|sunna band|sunna mat|बंद करो|सुनना बंद|بند کرو|سننا بند/;
+var YES=/\b(yes|yeah|yep|haan|han|ha|ji|ok|okay|theek hai|kar do)\b|हाँ|हां|जी|ठीक|ہاں|جی|ٹھیک/;
+var APPS={youtube:"https://www.youtube.com",whatsapp:"https://web.whatsapp.com",gmail:"https://mail.google.com",maps:"https://maps.google.com",instagram:"https://www.instagram.com",facebook:"https://www.facebook.com",twitter:"https://x.com",spotify:"https://open.spotify.com",telegram:"https://web.telegram.org",google:"https://www.google.com",chatgpt:"https://chatgpt.com"};
+var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+var langIdx=parseInt(localStorage.getItem("noor_lang")||"0",10)||0;
+var token=localStorage.getItem("noor_token")||"";
+var history=[],pending=null,rec=null,state="idle",speaking=false,busy=false,handsFree=false,micBlocked=false,shutdownAfter=false,activeUntil=0;
+function enc(x){return encodeURIComponent(x)}
+function p2(n){return (n<10?"0":"")+n}
+function getMem(){try{return JSON.parse(localStorage.getItem("noor_mem")||"[]")}catch(e){return[]}}
+function setMem(a){try{localStorage.setItem("noor_mem",JSON.stringify(a))}catch(e){}}
+var log=$("log");
+function addMsg(who,text){var d=document.createElement("div");d.className="m "+who;d.textContent=text;log.appendChild(d);log.scrollTop=log.scrollHeight;return d}
+function addLink(url,label){var d=document.createElement("div");d.className="m noor";var a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener";a.textContent="Open: "+label;d.appendChild(a);log.appendChild(d);log.scrollTop=log.scrollHeight}
+function openLink(url,label){addLink(url,label);try{window.open(url,"_blank")}catch(e){}}
+function setStatus(t){$("status").textContent=t}
+function setState(s){
+state=s;$("stage").className="stage "+s;
+var names={idle:"Ready",listening:"Listening...",thinking:"Soch rahi hoon...",speaking:"Bol rahi hoon..."};
+setStatus(handsFree&&s==="idle"?"Say \"Hey Noor\"":names[s]||"");
+}
+function updToggle(){$("hands").textContent="Hey Noor: "+(handsFree?"ON":"OFF");$("hands").className="btn"+(handsFree?" on":"")}
+function updLang(){$("lang").textContent=LANGS[langIdx][0]}
+var bars=[];for(var i=0;i<21;i++){var b=document.createElement("i");$("wave").appendChild(b);bars.push(b)}
+var t0=0;
+function anim(){
+t0+=0.25;
+var amp=state==="speaking"?0.9:state==="listening"?0.45:state==="thinking"?0.25:0.04;
+for(var i=0;i<bars.length;i++){
+var edge=1-Math.abs(i-10)/10*0.6;
+var h=4+40*amp*edge*(0.5+0.5*Math.sin(t0+i*0.6));
+bars[i].style.height=h+"px";
+}
+requestAnimationFrame(anim);
+}
+anim();
+function pickVoice(lang){
+var vs=speechSynthesis.getVoices(),base=lang.split("-")[0];
+var c=vs.filter(function(v){return v.lang.toLowerCase().replace("_","-").indexOf(base)===0});
+for(var i=0;i<c.length;i++){if(/female|zira|samantha|heera|priya|neerja|swara|google/i.test(c[i].name))return c[i]}
+return c[0]||null;
+}
+function speak(text){
+if(!("speechSynthesis" in window)){afterSpeak();return}
+speechSynthesis.cancel();abortRec();
+var u=new SpeechSynthesisUtterance(text);
+var lang=/[\u0600-\u06FF]/.test(text)?"ur-PK":/[\u0900-\u097F]/.test(text)?"hi-IN":"en-IN";
+u.lang=lang;var v=pickVoice(lang);if(v)u.voice=v;u.pitch=1.1;u.rate=1;
+speaking=true;setState("speaking");
+u.onend=u.onerror=function(){speaking=false;afterSpeak()};
+speechSynthesis.speak(u);
+}
+function afterSpeak(){
+activeUntil=Date.now()+15000;
+if(shutdownAfter){shutdownAfter=false;handsFree=false;updToggle();setState("idle");return}
+setState("idle");
+if(handsFree)startRec();
+}
+function say(text){addMsg("noor",text);speak(text)}
+function abortRec(){if(rec){var r=rec;rec=null;try{r.abort()}catch(e){}}}
+function startRec(){
+if(!SR){setStatus("Is browser mein voice input nahi. Chrome use karo ya type karo.");return}
+if(speaking||busy)return;
+abortRec();
+var r=new SR();rec=r;
+r.lang=LANGS[langIdx][1];r.continuous=false;r.interimResults=false;
+r.onresult=function(e){var t=e.results[e.results.length-1][0].transcript;onHeard(t)};
+r.onerror=function(e){
+if(e.error==="not-allowed"||e.error==="service-not-allowed"){micBlocked=true;handsFree=false;updToggle();setStatus("Microphone permission chahiye (Chrome site settings)")}
+};
+r.onend=function(){
+if(rec!==r)return;
+rec=null;
+if(handsFree&&!speaking&&!busy&&!micBlocked)setTimeout(startRec,300);
+else if(state==="listening")setState("idle");
+};
+try{r.start();setState("listening")}catch(e){}
+}
+function onHeard(raw){
+var lower=raw.toLowerCase().trim();if(!lower)return;
+var text=raw.trim();
+if(WAKE.test(lower)){activeUntil=Date.now()+30000;text=lower.replace(WAKE,"").trim()}
+if(Date.now()>activeUntil)return;
+handleText(text,lower);
+}
+/*PART2*/
+function handleText(text,lower){
+if(STOP.test(lower)){if(text)addMsg("me",text);shutdownAfter=true;say("Theek hai, sunna band kar rahi hoon.");return}
+if(!text){say("Ji, boliye.");return}
+addMsg("me",text);
+if(pending){var p=pending;clearPending();if(YES.test(lower))p();else say("Theek hai, cancel kar diya.");return}
+ask(text);
+}
+function setPending(fn,q){pending=fn;$("confirm").style.display="flex";say(q)}
+function clearPending(){pending=null;$("confirm").style.display="none"}
+function ctxInfo(){
+var d=new Date();
+var s="Local time: "+d.toLocaleString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric",hour:"2-digit",minute:"2-digit"})+".";
+if(navigator.getBattery){
+return navigator.getBattery().then(function(b){return s+" Battery: "+Math.round(b.level*100)+"%"+(b.charging?" (charging).":".")}).catch(function(){return s});
+}
+return Promise.resolve(s);
+}
+function ask(text){
+if(!token){token=(window.prompt("NOOR password (jo Render mein APP_TOKEN rakha tha):")||"").trim();if(token)localStorage.setItem("noor_token",token)}
+busy=true;setState("thinking");
+ctxInfo().then(function(c){
+return fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json","x-app-token":token},
+body:JSON.stringify({message:text,history:history,memories:getMem(),context:c})});
+}).then(function(r){
+if(r.status===401){token="";localStorage.removeItem("noor_token");throw new Error("auth")}
+if(r.status===429)throw new Error("rate");
+return r.json();
+}).then(function(j){busy=false;onResult(text,j)})
+.catch(function(e){
+busy=false;
+say(e.message==="auth"?"Password galat hai. Dobara try karein.":e.message==="rate"?"Thoda ruk kar dobara bolein.":"Maaf kijiye, server se connection nahi ho paya.");
+});
+}
+function beep(n){
+try{var ac=new (window.AudioContext||window.webkitAudioContext)();
+for(var i=0;i<n;i++){var o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.frequency.value=880;g.gain.value=0.2;o.start(ac.currentTime+i*0.5);o.stop(ac.currentTime+i*0.5+0.3)}}catch(e){}
+}
+function msUntil(h,m){var d=new Date();d.setHours(h,m,0,0);if(d<=new Date())d.setDate(d.getDate()+1);return d-new Date()}
+function webOnly(){say("Ye kaam sirf asli Android app (APK) mein ho sakta hai, website mein nahi.")}
+function onResult(userText,j){
+var reply=j.reply||"",s=j.slots||{};
+history.push({role:"user",content:userText});history.push({role:"assistant",content:reply});
+if(history.length>12)history=history.slice(-12);
+switch(j.intent){
+case "open_app":{
+var name=String(s.name||"").toLowerCase();
+var key=Object.keys(APPS).filter(function(k){return name.indexOf(k)>=0})[0];
+if(key){say(reply);openLink(APPS[key],key)}else say("Website par mujhe is app ka link nahi pata.");
+break}
+case "set_timer":{
+var sec=Math.max(1,parseInt(s.seconds,10)||60);
+say(reply);
+setTimeout(function(){beep(3);say("Timer khatam ho gaya.")},sec*1000);
+break}
+case "set_alarm":{
+var h=parseInt(s.hour,10)||0,m=parseInt(s.minute,10)||0;
+say(reply);addMsg("sys","Alarm tabhi bajega jab ye page khula rahe.");
+setTimeout(function(){beep(5);say("Alarm! "+(s.label||""))},msUntil(h,m));
+break}
+case "call":{
+var num=String(s.number||"").replace(/[^0-9+]/g,"");
+if(!num){say("Website par contacts nahi dikhte. Number bolkar bataiye.");break}
+setPending(function(){say("Call ka link khol rahi hoon.");openLink("tel:"+num,"Call "+num)},"Kya main "+(s.name||num)+" ko call karun? Haan ya nahi bolein.");
+break}
+case "remember":{
+var t=String(s.text||"");
+if(!t){say(reply);break}
+setPending(function(){var a=getMem();a.push(t);setMem(a);updMem();say("Theek hai, yaad rakh liya.")},"Kya main ye yaad rakh lun: "+t+"? Haan ya nahi bolein.");
+break}
+case "play_youtube":
+say(reply);openLink("https://www.youtube.com/results?search_query="+enc(s.query||""),"YouTube");break;
+case "maps":{
+var u=s.navigate?"https://www.google.com/maps/dir/?api=1&destination="+enc(s.place||""):"https://www.google.com/maps/search/?api=1&query="+enc(s.place||"");
+say(reply);openLink(u,"Maps");break}
+case "add_event":{
+var d=new Date();d.setDate(d.getDate()+(parseInt(s.day_offset,10)||0));
+d.setHours(parseInt(s.hour,10)||9,parseInt(s.minute,10)||0,0,0);
+var e=new Date(d.getTime()+3600000);
+var f=function(x){return x.getFullYear()+p2(x.getMonth()+1)+p2(x.getDate())+"T"+p2(x.getHours())+p2(x.getMinutes())+"00"};
+say(reply);openLink("https://calendar.google.com/calendar/render?action=TEMPLATE&text="+enc(s.title||"NOOR")+"&dates="+f(d)+"/"+f(e),"Calendar");
+break}
+case "send_message":{
+var n2=String(s.number||"").replace(/[^0-9+]/g,""),txt=String(s.text||"");
+if(!n2||!txt){say("Website par contacts nahi dikhte. Number (country code ke saath) aur message bataiye.");break}
+var isWa=String(s.app||"").toLowerCase()==="whatsapp";
+var url=isWa?"https://wa.me/"+n2.replace(/\D/g,"")+"?text="+enc(txt):"sms:"+n2+"?body="+enc(txt);
+setPending(function(){say("Message khol diya, bhejne ke liye Send aap dabayein.");openLink(url,isWa?"WhatsApp":"SMS")},"Kya main "+(s.name||n2)+" ko ye likhun: "+txt+"? Haan ya nahi bolein.");
+break}
+case "torch":case "volume":case "open_settings":webOnly();break;
+default:say(reply||"...");
+}
+}
+$("orb").onclick=function(){
+if(speaking){speechSynthesis.cancel();return}
+if(state==="listening"){abortRec();setState("idle");return}
+micBlocked=false;activeUntil=Date.now()+20000;startRec();
+};
+$("hands").onclick=function(){
+handsFree=!handsFree;updToggle();
+if(handsFree){micBlocked=false;startRec()}else{abortRec();setState("idle")}
+};
+$("lang").onclick=function(){langIdx=(langIdx+1)%LANGS.length;localStorage.setItem("noor_lang",String(langIdx));updLang()};
+function sendTyped(){
+var v=$("txt").value.trim();if(!v)return;$("txt").value="";
+activeUntil=Date.now()+30000;handleText(v,v.toLowerCase());
+}
+$("send").onclick=sendTyped;
+$("txt").onkeydown=function(e){if(e.key==="Enter")sendTyped()};
+$("yes").onclick=function(){if(pending){var p=pending;clearPending();addMsg("me","Haan");p()}};
+$("no").onclick=function(){if(pending){clearPending();addMsg("me","Nahi");say("Theek hai, cancel kar diya.")}};
+function updMem(){$("mem").textContent="Memories ("+getMem().length+")"}
+$("mem").onclick=function(){
+var a=getMem(),box=$("box");
+box.innerHTML="<h3>Approved memories</h3>";
+if(!a.length){var p=document.createElement("div");p.textContent="Abhi kuch save nahi hai.";box.appendChild(p)}
+else{var ul=document.createElement("ul");a.forEach(function(x){var li=document.createElement("li");li.textContent=x;ul.appendChild(li)});box.appendChild(ul)}
+var row=document.createElement("div");row.style.cssText="display:flex;gap:8px;margin-top:12px";
+var c=document.createElement("button");c.className="btn";c.textContent="Close";c.onclick=function(){$("overlay").style.display="none"};
+var d=document.createElement("button");d.className="btn";d.textContent="Clear all";d.onclick=function(){setMem([]);updMem();$("overlay").style.display="none"};
+row.appendChild(c);row.appendChild(d);box.appendChild(row);
+$("overlay").style.display="flex";
+};
+if("speechSynthesis" in window){speechSynthesis.onvoiceschanged=function(){}}
+updToggle();updLang();updMem();
+addMsg("noor","Hello, main NOOR hoon. Orb dabakar bolein, ya neeche type karein.");
+addMsg("sys","Ye website version hai: mic tabhi chalta hai jab page khula ho. Lock-screen aur background ke liye asli Android app (APK) chahiye.");
+})();
+</script>
+</body>
+</html>
