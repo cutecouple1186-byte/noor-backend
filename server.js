@@ -95,9 +95,20 @@ async function weather(city) {
 }
 
 // ---- Website (index.html) + install support ----
-const INDEX = path.join(__dirname, "index.html");
 const AVATAR = path.join(__dirname, "avatar.png");
-app.get("/", (_req, res) => (fs.existsSync(INDEX) ? res.sendFile(INDEX) : res.send("NOOR backend OK")));
+// Website: pehle public/index.html (Vercel), warna index.html (purana tareeqa)
+app.get("/", (_req, res) => {
+  let html = null;
+  try {
+    html = fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf8");
+  } catch (e) {
+    try {
+      html = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
+    } catch (e2) {}
+  }
+  if (html) res.type("html").send(html);
+  else res.send("NOOR backend OK");
+});
 app.get("/avatar.png", (_req, res) => (fs.existsSync(AVATAR) ? res.sendFile(AVATAR) : res.status(404).end()));
 app.get("/icon.svg", (_req, res) =>
   res.type("image/svg+xml").send(
