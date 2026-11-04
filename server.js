@@ -4,11 +4,11 @@ const fs = require("fs");
 
 const app = express();
 app.set("trust proxy", 1);
-app.use(express.json({ limit: "100kb" }));
+app.use(express.json({ limit: "3mb" })); // camera frame (chhoti JPEG) ke liye
 
 // Simple rate limit: max 40 requests per minute per IP
 const hits = new Map();
-app.use("/chat", (req, res, next) => {
+app.use(["/chat", "/tts"], (req, res, next) => {
   const now = Date.now();
   const arr = (hits.get(req.ip) || []).filter((t) => now - t < 60000);
   arr.push(now);
@@ -42,6 +42,9 @@ Allowed intents and slots:
 - "open_settings": {"target": "wifi" or "bluetooth" or "sound" or "battery" or "location" or "display"}
 - "add_event": {"title": string, "hour": 0-23, "minute": 0-59, "day_offset": 0 for today, 1 for tomorrow, etc}
 - "send_message": {"app": "whatsapp" or "sms", "name": string, "number": string or "", "text": string}
+- "camera": {"on": true or false}  (user asks to turn the back camera on or off, e.g. "camera on karo", "mujhe dekho")
+Personality: you are a warm, curious friend, not a robot. Share a small thought of your own now and then, and often (not every time) end with one short, natural question back to the user about their day, plans or interests. Never ask more than one question at a time.
+Vision: if an image is attached, it is a live frame from the user's back camera. Answer about what you actually see, briefly and accurately. If it is blurry or unclear, say so and ask them to hold steady or come closer. Do not identify real people from their faces.
 Morning briefing: if the user says good morning or asks for a briefing, greet them, say the time and battery, mention relevant user memories, and if a home city is in the memories use intent "weather" with that city.
 For actions, "reply" is what you say right now, e.g. "Theek hai, WhatsApp khol rahi hoon."
 Never claim an action is finished; the phone app performs it.
@@ -160,7 +163,11 @@ app.post("/chat", async (req, res) => {
     return res.status(401).json({ reply: "Unauthorized", intent: "none", slots: {} });
   }
   try {
-    const { message = "", history = [], memories = [], context = "" } = req.body;
+    const { message = "", history = [], memories = [], context = "", image = "" } = req.body;
+    const img =
+      typeof image === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(image) && image.length < 2500000
+        ? image
+        : "";
     const sys =
       SYSTEM +
       (context ? `\nDevice context: ${String(context).slice(0, 300)}` : "") +
@@ -171,7 +178,15 @@ app.post("/chat", async (req, res) => {
         role: h.role === "assistant" ? "assistant" : "user",
         content: String(h.content).slice(0, 1000),
       })),
-      { role: "user", content: String(message).slice(0, 1000) },
+      {
+        role: "user",
+        content: img
+          ? [
+              { type: "text", text: String(message).slice(0, 1000) },
+              { type: "image_url", image_url: { url: img } },
+            ]
+          : String(message).slice(0, 1000),
+      },
     ];
     let out = await llm(msgs);
 
@@ -193,6 +208,79 @@ app.post("/chat", async (req, res) => {
     console.error(e);
     res.status(500).json({ reply: "Maaf kijiye, abhi mujhe jawab nahi mil raha.", intent: "none", slots: {} });
   }
+});
+
+// ---- Awaaz (Gemini TTS): kam robot jaisi. Na chale to website browser ki awaaz use karti hai ----
+const TTS_MODELS = [process.env.TTS_MODEL || "gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts"].filter(
+  (m, i, a) => a.indexOf(m) === i
+);
+const TTS_VOICE = process.env.TTS_VOICE || "Leda"; // Leda = Youthful
+const TTS_STYLE = "warm, friendly young woman chatting with a close friend, relaxed pace, natural and expressive";
+
+function pcmToWav(pcm, rate) {
+  const h = Buffer.alloc(44);
+  h.write("RIFF", 0);
+  h.writeUInt32LE(36 + pcm.length, 4);
+  h.write("WAVEfmt ", 8);
+  h.writeUInt32LE(16, 16);
+  h.writeUInt16LE(1, 20); // PCM
+  h.writeUInt16LE(1, 22); // mono
+  h.writeUInt32LE(rate, 24);
+  h.writeUInt32LE(rate * 2, 28);
+  h.writeUInt16LE(2, 32);
+  h.writeUInt16LE(16, 34);
+  h.write("data", 36);
+  h.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([h, pcm]);
+}
+
+app.post("/tts", async (req, res) => {
+  if (APP_TOKEN && req.get("x-app-token") !== APP_TOKEN) return res.status(401).end();
+  if (!BASE.includes("generativelanguage.googleapis.com")) return res.status(501).end();
+  const text = String((req.body && req.body.text) || "").slice(0, 500).trim();
+  if (!text) return res.status(400).end();
+  for (const m of TTS_MODELS) {
+    try {
+      // Gemini "Interactions" API (ai.google.dev/gemini-api/docs/speech-generation)
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": LLM_API_KEY },
+        body: JSON.stringify({
+          model: m,
+          input: [
+            {
+              type: "user_input",
+              content: [{ type: "text", text, annotations: [{ type: "speech_metadata", style: TTS_STYLE }] }],
+            },
+          ],
+          response_format: { type: "audio" },
+          generation_config: { speech_config: [{ voice: TTS_VOICE }] },
+        }),
+        signal: AbortSignal.timeout(9000),
+      });
+      if (!r.ok) {
+        console.error(`tts ${m} failed ${r.status}:`, (await r.text()).slice(0, 300));
+        continue;
+      }
+      const j = await r.json();
+      const audio = (j.steps || [])
+        .filter((st) => st.type === "model_output")
+        .flatMap((st) => st.content || [])
+        .filter((c) => c.type === "audio" && c.data)
+        .pop();
+      if (!audio) {
+        console.error(`tts ${m}: no audio in response`);
+        continue;
+      }
+      let buf = Buffer.from(audio.data, "base64");
+      if (buf.slice(0, 4).toString() !== "RIFF") buf = pcmToWav(buf, 24000); // unary mein WAV aata hai; warna raw PCM
+      res.set("Content-Type", "audio/wav").set("Cache-Control", "no-store").send(buf);
+      return;
+    } catch (e) {
+      console.error(`tts ${m} error:`, String(e.message || e).slice(0, 200));
+    }
+  }
+  res.status(502).end();
 });
 
 app.listen(process.env.PORT || 3000, () => console.log("NOOR backend running"));

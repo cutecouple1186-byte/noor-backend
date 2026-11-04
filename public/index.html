@@ -40,6 +40,9 @@ display:flex;align-items:center;justify-content:center;font-size:44px}
 .m.noor{align-self:flex-start;background:var(--card);border:1px solid var(--line)}
 .m.sys{align-self:center;color:var(--mut);font-size:12px;text-align:center}
 .m a{color:var(--pl);font-weight:600}
+.m.link{padding:0;border:0;background:none}
+.m.link a{display:inline-block;background:var(--p);color:#fff;text-decoration:none;border-radius:999px;padding:11px 18px;font-size:15px}
+#cv{display:none;width:132px;height:99px;object-fit:cover;border-radius:12px;border:1px solid var(--line);margin-top:8px;background:#000}
 #confirm{display:none;gap:10px;padding:6px 14px}
 #confirm .btn{flex:1;padding:11px}
 #bar{display:flex;gap:8px;padding:8px 14px 12px}
@@ -54,6 +57,7 @@ display:flex;align-items:center;justify-content:center;font-size:44px}
 <header>
 <div class="logo">NOOR AI</div>
 <div class="chips">
+<button class="btn" id="cam">Camera: OFF</button>
 <button class="btn" id="hands">Hey Noor: OFF</button>
 <button class="btn" id="lang">Urdu / Hindi</button>
 <button class="btn" id="mem">Memories</button>
@@ -63,6 +67,7 @@ display:flex;align-items:center;justify-content:center;font-size:44px}
 <button id="orb" aria-label="Tap to talk"><div id="ring"></div><div id="face"><img id="av" src="/avatar.png" alt="" onerror="this.remove();document.getElementById('face').textContent='✦'"></div></button>
 <div id="status">Tap the orb and speak</div>
 <div id="wave"></div>
+<video id="cv" playsinline muted autoplay></video>
 </div>
 <div id="log"></div>
 <div id="confirm"><button class="btn" id="yes">Haan</button><button class="btn" id="no">Nahi</button></div>
@@ -75,7 +80,51 @@ var LANGS=[["Urdu / Hindi","hi-IN"],["Urdu (PK)","ur-PK"],["English","en-IN"]];
 var WAKE=/(hey|hay|hi|he|ae|ai|है|हे|हेय|ऐ|ہے|اے|ہی)\s*(noor|nur|nour|नूर|نور)/;
 var STOP=/stop listening|\bstop\b|band karo|sunna band|sunna mat|बंद करो|सुनना बंद|بند کرو|سننا بند/;
 var YES=/\b(yes|yeah|yep|haan|han|ha|ji|ok|okay|theek hai|kar do)\b|हाँ|हां|जी|ठीक|ہاں|جی|ٹھیک/;
-var APPS={youtube:"https://www.youtube.com",whatsapp:"https://web.whatsapp.com",gmail:"https://mail.google.com",maps:"https://maps.google.com",instagram:"https://www.instagram.com",facebook:"https://www.facebook.com",twitter:"https://x.com",spotify:"https://open.spotify.com",telegram:"https://web.telegram.org",google:"https://www.google.com",chatgpt:"https://chatgpt.com"};
+/* [naam/alias, Android package, website (agar app na ho to yahan khulega)] */
+var APPS=[
+[["whatsapp business","whatsapp w4b"],"com.whatsapp.w4b","https://web.whatsapp.com"],
+[["whatsapp","व्हाट्सएप","व्हाट्सऐप","वाट्सएप","واٹس ایپ","واٹس اپ"],"com.whatsapp","https://web.whatsapp.com"],
+[["youtube studio","yt studio"],"com.google.android.apps.youtube.creator","https://studio.youtube.com"],
+[["youtube","you tube","यूट्यूब","यू ट्यूब","یوٹیوب"],"com.google.android.youtube","https://www.youtube.com"],
+[["tiktok","tik tok","टिकटॉक","टिक टॉक","ٹک ٹاک","ٹیک ٹاک"],"com.zhiliaoapp.musically","https://www.tiktok.com"],
+[["instagram","insta","इंस्टाग्राम","انسٹاگرام"],"com.instagram.android","https://www.instagram.com"],
+[["facebook lite"],"com.facebook.lite","https://www.facebook.com"],
+[["facebook","fb","फेसबुक","فیس بک"],"com.facebook.katana","https://www.facebook.com"],
+[["messenger","मैसेंजर","میسنجر"],"com.facebook.orca","https://www.messenger.com"],
+[["snapchat","snap","स्नैपचैट","سنیپ چیٹ"],"com.snapchat.android","https://www.snapchat.com"],
+[["telegram","टेलीग्राम","ٹیلیگرام"],"org.telegram.messenger","https://web.telegram.org"],
+[["twitter","x app","ट्विटर","ٹویٹر"],"com.twitter.android","https://x.com"],
+[["spotify","स्पॉटिफाई"],"com.spotify.music","https://open.spotify.com"],
+[["netflix","नेटफ्लिक्स","نیٹ فلکس"],"com.netflix.mediaclient","https://www.netflix.com"],
+[["gmail","जीमेल","جی میل"],"com.google.android.gm","https://mail.google.com"],
+[["google maps","maps","map","मैप","नक्शा","میپ"],"com.google.android.apps.maps","https://maps.google.com"],
+[["google drive","drive"],"com.google.android.apps.docs","https://drive.google.com"],
+[["google photos","photos","gallery","फोटो","गैलरी","گیلری"],"com.google.android.apps.photos","https://photos.google.com"],
+[["chrome","क्रोम","کروم"],"com.android.chrome","https://www.google.com"],
+[["play store","playstore","प्ले स्टोर","پلے اسٹور"],"com.android.vending","https://play.google.com"],
+[["settings","setting","सेटिंग","سیٹنگ"],"com.android.settings",""],
+[["chatgpt","chat gpt","चैटजीपीटी"],"com.openai.chatgpt","https://chatgpt.com"],
+[["claude","क्लाउड"],"com.anthropic.claude","https://claude.ai"],
+[["gemini","जेमिनी"],"com.google.android.apps.bard","https://gemini.google.com"],
+[["google","गूगल","گوگل"],"com.google.android.googlequicksearchbox","https://www.google.com"],
+[["zoom","ज़ूम","जूम"],"us.zoom.videomeetings","https://zoom.us"],
+[["linkedin","लिंक्डइन"],"com.linkedin.android","https://www.linkedin.com"],
+[["pinterest"],"com.pinterest","https://www.pinterest.com"],
+[["reddit"],"com.reddit.frontpage","https://www.reddit.com"],
+[["imo","इमो","امو"],"com.imo.android.imoim","https://imo.im"],
+[["jazzcash","jazz cash","जैज़कैश","جاز کیش"],"com.techlogix.mobilinkcustomer","https://www.jazzcash.com.pk"],
+[["easypaisa","easy paisa","ईज़ीपैसा","ایزی پیسہ"],"pk.com.telenor.phoenix","https://easypaisa.com.pk"],
+[["daraz","दराज़","درازا"],"com.daraz.android","https://www.daraz.pk"]
+];
+function findApp(name){
+var best=null,bl=0;
+APPS.forEach(function(a){a[0].forEach(function(al){
+var hit=/^[a-z ]+$/.test(al)?new RegExp("(^|[^a-z])"+al+"([^a-z]|$)").test(name):name.indexOf(al)>=0;
+if(hit&&al.length>bl){best=a;bl=al.length}
+})});
+return best}
+/* Chrome (Android) se install wali app kholne ka intent link; app na ho to website khulegi */
+function appIntent(pkg,web){return "intent://#Intent;package="+pkg+(web?";S.browser_fallback_url="+encodeURIComponent(web):"")+";end"}
 var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 var langIdx=parseInt(localStorage.getItem("noor_lang")||"0",10)||0;
 var token=localStorage.getItem("noor_token")||"";
@@ -86,8 +135,8 @@ function getMem(){try{return JSON.parse(localStorage.getItem("noor_mem")||"[]")}
 function setMem(a){try{localStorage.setItem("noor_mem",JSON.stringify(a))}catch(e){}}
 var log=$("log");
 function addMsg(who,text){var d=document.createElement("div");d.className="m "+who;d.textContent=text;log.appendChild(d);log.scrollTop=log.scrollHeight;return d}
-function addLink(url,label){var d=document.createElement("div");d.className="m noor";var a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener";a.textContent="Open: "+label;d.appendChild(a);log.appendChild(d);log.scrollTop=log.scrollHeight}
-function openLink(url,label){addLink(url,label);try{window.open(url,"_blank")}catch(e){}}
+function addLink(url,label){var d=document.createElement("div");d.className="m link";var a=document.createElement("a");a.href=url;if(url.indexOf("intent:")!==0){a.target="_blank";a.rel="noopener"}a.textContent="Open: "+label;d.appendChild(a);log.appendChild(d);log.scrollTop=log.scrollHeight}
+function openLink(url,label){addLink(url,label);if(url.indexOf("intent:")===0)return;try{window.open(url,"_blank")}catch(e){}}
 function setStatus(t){$("status").textContent=t}
 function setState(s){
 state=s;$("stage").className="stage "+s;
@@ -115,15 +164,37 @@ var c=vs.filter(function(v){return v.lang.toLowerCase().replace("_","-").indexOf
 for(var i=0;i<c.length;i++){if(/female|zira|samantha|heera|priya|neerja|swara|google/i.test(c[i].name))return c[i]}
 return c[0]||null;
 }
-function speak(text){
-if(!("speechSynthesis" in window)){afterSpeak();return}
-speechSynthesis.cancel();abortRec();
+var ttsAudio=null,ttsFails=0,speakId=0;
+function stopSpeak(){
+speakId++;
+if(ttsAudio){try{ttsAudio.pause()}catch(e){}ttsAudio=null}
+if("speechSynthesis" in window)speechSynthesis.cancel();
+}
+function browserSpeak(text,id){
+if(!("speechSynthesis" in window)){speaking=false;afterSpeak();return}
 var u=new SpeechSynthesisUtterance(text);
 var lang=/[\u0600-\u06FF]/.test(text)?"ur-PK":/[\u0900-\u097F]/.test(text)?"hi-IN":"en-IN";
 u.lang=lang;var v=pickVoice(lang);if(v)u.voice=v;u.pitch=1.1;u.rate=1;
-speaking=true;setState("speaking");
-u.onend=u.onerror=function(){speaking=false;afterSpeak()};
+u.onend=u.onerror=function(){if(id!==speakId)return;speaking=false;afterSpeak()};
 speechSynthesis.speak(u);
+}
+function speak(text){
+stopSpeak();abortRec();
+var id=speakId;
+speaking=true;setState("speaking");
+if(ttsFails>=3){browserSpeak(text,id);return}
+fetch("/tts",{method:"POST",headers:{"Content-Type":"application/json","x-app-token":token},body:JSON.stringify({text:text})})
+.then(function(r){if(!r.ok)throw new Error("tts "+r.status);return r.blob()})
+.then(function(b){
+if(id!==speakId)return;
+ttsFails=0;
+var url=URL.createObjectURL(b),a=new Audio(url);ttsAudio=a;
+var fin=function(){URL.revokeObjectURL(url);if(id!==speakId)return;ttsAudio=null;speaking=false;afterSpeak()};
+a.onended=fin;
+a.onerror=function(){if(id!==speakId)return;ttsAudio=null;browserSpeak(text,id)};
+var pr=a.play();if(pr&&pr.catch)pr.catch(function(){if(id!==speakId)return;ttsAudio=null;browserSpeak(text,id)});
+})
+.catch(function(){if(id!==speakId)return;ttsFails++;browserSpeak(text,id)});
 }
 function afterSpeak(){
 activeUntil=Date.now()+15000;
@@ -176,12 +247,33 @@ return navigator.getBattery().then(function(b){return s+" Battery: "+Math.round(
 }
 return Promise.resolve(s);
 }
+var camOn=false,camStream=null;
+function camUI(){$("cam").textContent="Camera: "+(camOn?"ON":"OFF");$("cam").className="btn"+(camOn?" on":"");$("cv").style.display=camOn?"block":"none"}
+function camStart(){
+if(camOn)return;
+if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){say("Is browser mein camera nahi chal sakta. Chrome use karein.");return}
+navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}},audio:false})
+.then(function(st){camStream=st;var v=$("cv");v.srcObject=st;camOn=true;camUI();var pl=v.play();if(pl&&pl.catch)pl.catch(function(){})})
+.catch(function(){say("Camera ki ijazat nahi mili. Chrome ki site settings mein camera allow karein.")});
+}
+function camStop(){
+if(camStream){camStream.getTracks().forEach(function(t){t.stop()})}
+camStream=null;camOn=false;$("cv").srcObject=null;camUI();
+}
+function grabFrame(){
+if(!camOn)return "";
+var v=$("cv");if(!v.videoWidth)return "";
+var w=768,h=Math.round(v.videoHeight*w/v.videoWidth);
+var c=document.createElement("canvas");c.width=w;c.height=h;
+c.getContext("2d").drawImage(v,0,0,w,h);
+try{return c.toDataURL("image/jpeg",0.6)}catch(e){return ""}
+}
 function ask(text){
-if(!token){token=(window.prompt("NOOR password (jo Render mein APP_TOKEN rakha tha):")||"").trim();if(token)localStorage.setItem("noor_token",token)}
+if(!token){token=(window.prompt("NOOR password:")||"").trim();if(token)localStorage.setItem("noor_token",token)}
 busy=true;setState("thinking");
 ctxInfo().then(function(c){
 return fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json","x-app-token":token},
-body:JSON.stringify({message:text,history:history,memories:getMem(),context:c})});
+body:JSON.stringify({message:text,history:history,memories:getMem(),context:c,image:grabFrame()})});
 }).then(function(r){
 if(r.status===401){token="";localStorage.removeItem("noor_token");throw new Error("auth")}
 if(r.status===429)throw new Error("rate");
@@ -205,8 +297,10 @@ if(history.length>12)history=history.slice(-12);
 switch(j.intent){
 case "open_app":{
 var name=String(s.name||"").toLowerCase();
-var key=Object.keys(APPS).filter(function(k){return name.indexOf(k)>=0})[0];
-if(key){say(reply);openLink(APPS[key],key)}else say("Website par mujhe is app ka link nahi pata.");
+var app=findApp(name);
+if(app){say(reply);openLink(appIntent(app[1],app[2]),app[0][0])}
+else if(name){say("Is app ka naam mujhe nahi pata. Play Store mein dhoondhne ka link de rahi hoon.");openLink("https://play.google.com/store/search?c=apps&q="+enc(name),name)}
+else say("Kaun si app kholni hai?");
 break}
 case "set_timer":{
 var sec=Math.max(1,parseInt(s.seconds,10)||60);
@@ -247,12 +341,16 @@ var isWa=String(s.app||"").toLowerCase()==="whatsapp";
 var url=isWa?"https://wa.me/"+n2.replace(/\D/g,"")+"?text="+enc(txt):"sms:"+n2+"?body="+enc(txt);
 setPending(function(){say("Message khol diya, bhejne ke liye Send aap dabayein.");openLink(url,isWa?"WhatsApp":"SMS")},"Kya main "+(s.name||n2)+" ko ye likhun: "+txt+"? Haan ya nahi bolein.");
 break}
+case "camera":
+say(reply);
+if(s.on===false)camStop();else camStart();
+break;
 case "torch":case "volume":case "open_settings":webOnly();break;
 default:say(reply||"...");
 }
 }
 $("orb").onclick=function(){
-if(speaking){speechSynthesis.cancel();return}
+if(speaking){stopSpeak();speaking=false;afterSpeak();return}
 if(state==="listening"){abortRec();setState("idle");return}
 micBlocked=false;activeUntil=Date.now()+20000;startRec();
 };
@@ -260,6 +358,7 @@ $("hands").onclick=function(){
 handsFree=!handsFree;updToggle();
 if(handsFree){micBlocked=false;startRec()}else{abortRec();setState("idle")}
 };
+$("cam").onclick=function(){if(camOn)camStop();else camStart()};
 $("lang").onclick=function(){langIdx=(langIdx+1)%LANGS.length;localStorage.setItem("noor_lang",String(langIdx));updLang()};
 function sendTyped(){
 var v=$("txt").value.trim();if(!v)return;$("txt").value="";
