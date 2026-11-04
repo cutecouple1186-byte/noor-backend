@@ -47,20 +47,48 @@ For actions, "reply" is what you say right now, e.g. "Theek hai, WhatsApp khol r
 Never claim an action is finished; the phone app performs it.
 Only use "remember" if the user clearly asks you to remember something.`;
 
+// Agar pehla model masroof (503) ya band (404) ho to agla model try hota hai
+const FALLBACKS = (process.env.LLM_FALLBACK_MODELS || "gemini-flash-latest,gemini-flash-lite-latest,gemini-2.5-flash")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+function parseJson(text) {
+  const t = String(text || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  return JSON.parse(t);
+}
+
 async function llm(messages) {
-  const r = await fetch(`${BASE}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${LLM_API_KEY}` },
-    body: JSON.stringify({
-      model: MODEL,
-      messages,
-      temperature: 0.6,
-      response_format: { type: "json_object" },
-    }),
-  });
-  if (!r.ok) throw new Error(`LLM error ${r.status}: ${(await r.text()).slice(0, 300)}`);
-  const j = await r.json();
-  return JSON.parse(j.choices[0].message.content);
+  const models = [MODEL, ...FALLBACKS.filter((m) => m !== MODEL)];
+  let lastErr;
+  for (const m of models) {
+    try {
+      const r = await fetch(`${BASE}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${LLM_API_KEY}` },
+        body: JSON.stringify({
+          model: m,
+          messages,
+          temperature: 0.6,
+          response_format: { type: "json_object" },
+        }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!r.ok) {
+        const err = new Error(`LLM error ${r.status} (model ${m}): ${(await r.text()).slice(0, 300)}`);
+        err.status = r.status;
+        throw err;
+      }
+      const j = await r.json();
+      return parseJson(j.choices[0].message.content);
+    } catch (e) {
+      lastErr = e;
+      console.error(`model ${m} failed:`, String(e.message || e).slice(0, 200));
+      // 401/403 (key galat) par dobara try karne ka faida nahi
+      if (e.status === 401 || e.status === 403) throw e;
+    }
+  }
+  throw lastErr;
 }
 
 async function webSearch(query) {
