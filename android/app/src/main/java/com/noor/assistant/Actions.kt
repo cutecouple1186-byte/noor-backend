@@ -39,6 +39,48 @@ object Actions {
         "ईज़ीपैसा" to "easypaisa", "ایزی پیسہ" to "easypaisa"
     )
 
+    // Jaani-pehchani apps: bolne ka naam -> mumkin package. Jo phone mein ho wahi khulti hai.
+    private val KNOWN = listOf(
+        listOf("whatsapp business", "business whatsapp", "w4b") to listOf("com.whatsapp.w4b"),
+        listOf("whatsapp", "whats app") to listOf("com.whatsapp", "com.whatsapp.w4b"),
+        listOf("tiktok lite", "tik tok lite") to listOf("com.zhiliaoapp.musically.go"),
+        listOf("tiktok", "tik tok") to listOf("com.zhiliaoapp.musically", "com.ss.android.ugc.trill", "com.zhiliaoapp.musically.go"),
+        listOf("instagram", "insta") to listOf("com.instagram.android"),
+        listOf("snapchat", "snap chat") to listOf("com.snapchat.android"),
+        listOf("facebook", "fb") to listOf("com.facebook.katana", "com.facebook.lite"),
+        listOf("youtube studio", "yt studio", "studio") to listOf("com.google.android.apps.youtube.creator"),
+        listOf("youtube", "you tube") to listOf("com.google.android.youtube"),
+        listOf("chrome", "browser") to listOf("com.android.chrome"),
+        listOf("gmail", "mail") to listOf("com.google.android.gm"),
+        listOf("drive") to listOf("com.google.android.apps.docs"),
+        listOf("photos", "google photos") to listOf("com.google.android.apps.photos"),
+        listOf("meet") to listOf("com.google.android.apps.tachyon"),
+        listOf("maps", "google maps") to listOf("com.google.android.apps.maps"),
+        listOf("play store", "playstore") to listOf("com.android.vending"),
+        listOf("chatgpt", "chat gpt", "gpt") to listOf("com.openai.chatgpt"),
+        listOf("gemini") to listOf("com.google.android.apps.bard"),
+        listOf("claude") to listOf("com.anthropic.claude"),
+        listOf("pinterest") to listOf("com.pinterest"),
+        listOf("picsart", "pics art") to listOf("com.picsart.studio"),
+        listOf("capcut", "cap cut") to listOf("com.lemon.lvoverseas", "com.lemon.lvoverseas.lite"),
+        listOf("wps", "wps office") to listOf("cn.wps.moffice_eng"),
+        listOf("snaptube", "snap tube") to listOf("com.snaptube.premium"),
+        listOf("github", "git hub") to listOf("com.github.android"),
+        listOf("free fire", "freefire") to listOf("com.dts.freefireth", "com.dts.freefiremax"),
+        listOf("settings", "setting") to listOf("com.android.settings"),
+        listOf("camera") to listOf("com.android.camera", "com.oplus.camera", "com.coloros.camera"),
+        listOf("contacts", "contact") to listOf("com.google.android.contacts", "com.android.contacts"),
+        listOf("phone", "dialer") to listOf("com.google.android.dialer", "com.android.dialer"),
+        listOf("messages", "message", "sms") to listOf("com.google.android.apps.messaging", "com.android.mms")
+    )
+
+    private fun installed(ctx: Context, pkg: String): Boolean =
+        try {
+            ctx.packageManager.getLaunchIntentForPackage(pkg) != null
+        } catch (e: Exception) {
+            false
+        }
+
     private fun norm(s: String): String =
         s.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
 
@@ -58,6 +100,12 @@ object Actions {
         for ((k, v) in ALIASES) if (q.contains(k)) q = q.replace(k, v)
         q = norm(q)
         if (q.isEmpty()) return null
+        for ((names, pkgs) in KNOWN) {
+            if (names.any { q == it }) {
+                val hit = pkgs.firstOrNull { installed(ctx, it) }
+                if (hit != null) return hit
+            }
+        }
         val pm = ctx.packageManager
         val main = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         var best: String? = null

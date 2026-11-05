@@ -16,6 +16,12 @@ class OrbView(ctx: Context) : View(ctx) {
 
     var state = "off"
 
+    /** false ho to beech ka gola nahi banta (wahan avatar tasveer hoti hai). */
+    var core = true
+
+    /** Saans lene jaisa halka hilne wala avatar. */
+    var avatar: View? = null
+
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private val txt = Paint(Paint.ANTI_ALIAS_FLAG)
     private var t = 0f
@@ -65,6 +71,16 @@ class OrbView(ctx: Context) : View(ctx) {
             p.color = col
             p.alpha = 200
             c.drawCircle(cx + rr * cos(a), cy + rr * sin(a), 5f, p)
+        }
+
+        avatar?.let {
+            val k = 1f + amp * 0.45f * sin(t * speed)
+            it.scaleX = k
+            it.scaleY = k
+        }
+        if (!core) {
+            postInvalidateOnAnimation()
+            return
         }
 
         p.style = Paint.Style.FILL

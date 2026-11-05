@@ -43,23 +43,34 @@ object Net {
         body.put("memories", m)
         body.put("context", context)
 
-        val c = open("$base/chat", token)
-        c.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-        val code = c.responseCode
-        if (code == 401) return fail("Password galat hai. App mein dobara daalein.")
-        val stream = if (code in 200..299) c.inputStream else c.errorStream
-        val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
-        return try {
-            JSONObject(text)
-        } catch (e: Exception) {
-            fail("Maaf kijiye, abhi mujhe jawab nahi mil raha.")
+        var last = fail("Maaf kijiye, abhi mujhe jawab nahi mil raha.")
+        for (attempt in 0..1) {
+            try {
+                val c = open("$base/chat", token)
+                c.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                val code = c.responseCode
+                if (code == 401) return fail("Password galat hai. App mein dobara daalein.")
+                val stream = if (code in 200..299) c.inputStream else c.errorStream
+                val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+                if (code in 200..299) return JSONObject(text)
+                last = try {
+                    JSONObject(text)
+                } catch (e: Exception) {
+                    last
+                }
+            } catch (e: Exception) {
+                last = fail("Internet check karein, server se connection nahi ho paya.")
+            }
         }
+        return last
     }
 
     /** Server ki Gemini awaaz (WAV). Na chale to null, tab phone ki apni awaaz use hoti hai. */
     fun tts(base: String, token: String, text: String, dir: File): File? {
         return try {
             val c = open("$base/tts", token)
+            c.connectTimeout = 4000
+            c.readTimeout = 7000
             c.outputStream.use {
                 it.write(JSONObject().put("text", text).toString().toByteArray(Charsets.UTF_8))
             }

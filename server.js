@@ -61,37 +61,70 @@ function parseJson(text) {
   return JSON.parse(t);
 }
 
+async function llmOne(m, messages) {
+  const r = await fetch(`${BASE}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${LLM_API_KEY}` },
+    body: JSON.stringify({
+      model: m,
+      messages,
+      temperature: 0.6,
+      response_format: { type: "json_object" },
+    }),
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!r.ok) {
+    const err = new Error(`LLM error ${r.status} (model ${m}): ${(await r.text()).slice(0, 300)}`);
+    err.status = r.status;
+    throw err;
+  }
+  const j = await r.json();
+  return parseJson(j.choices[0].message.content);
+}
+
+// Tez jawab ke liye: pehla model chalta hai, 2.5 second mein na aaye to agla model bhi saath mein shuru,
+// jo pehle sahi jawab de wahi le lo.
 async function llm(messages) {
   const models = [MODEL, ...FALLBACKS.filter((m) => m !== MODEL)];
-  let lastErr;
-  for (const m of models) {
-    try {
-      const r = await fetch(`${BASE}/chat/completions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${LLM_API_KEY}` },
-        body: JSON.stringify({
-          model: m,
-          messages,
-          temperature: 0.6,
-          response_format: { type: "json_object" },
-        }),
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!r.ok) {
-        const err = new Error(`LLM error ${r.status} (model ${m}): ${(await r.text()).slice(0, 300)}`);
-        err.status = r.status;
-        throw err;
-      }
-      const j = await r.json();
-      return parseJson(j.choices[0].message.content);
-    } catch (e) {
-      lastErr = e;
-      console.error(`model ${m} failed:`, String(e.message || e).slice(0, 200));
-      // 401/403 (key galat) par dobara try karne ka faida nahi
-      if (e.status === 401 || e.status === 403) throw e;
-    }
-  }
-  throw lastErr;
+  return new Promise((resolve, reject) => {
+    let started = 0;
+    let failed = 0;
+    let done = false;
+    let lastErr;
+    const timers = [];
+    const startNext = () => {
+      if (done || started >= models.length) return;
+      const m = models[started++];
+      llmOne(m, messages).then(
+        (out) => {
+          if (done) return;
+          done = true;
+          timers.forEach(clearTimeout);
+          resolve(out);
+        },
+        (e) => {
+          lastErr = e;
+          console.error(`model ${m} failed:`, String(e.message || e).slice(0, 200));
+          failed++;
+          if (done) return;
+          if (e.status === 401 || e.status === 403) {
+            done = true;
+            timers.forEach(clearTimeout);
+            reject(e);
+            return;
+          }
+          if (started < models.length) startNext();
+          else if (failed >= models.length) {
+            done = true;
+            timers.forEach(clearTimeout);
+            reject(lastErr);
+          }
+        }
+      );
+      if (started < models.length) timers.push(setTimeout(startNext, 2500));
+    };
+    startNext();
+  });
 }
 
 async function webSearch(query) {

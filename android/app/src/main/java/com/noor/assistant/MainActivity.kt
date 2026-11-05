@@ -262,7 +262,24 @@ class MainActivity : Activity() {
         content.addView(detailTv, lp(MATCH, WRAP))
 
         orb = OrbView(this)
-        content.addView(orb, lp(MATCH, dp(220)))
+        orb.core = false
+        val stage = FrameLayout(this)
+        stage.addView(orb, FrameLayout.LayoutParams(MATCH, MATCH))
+        val face = android.widget.ImageView(this)
+        face.setImageResource(R.drawable.noor_avatar)
+        face.scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+        face.setBackgroundColor(Color.parseColor("#0B1626"))
+        face.outlineProvider = object : android.view.ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: android.graphics.Outline) {
+                outline.setOval(0, 0, view.width, view.height)
+            }
+        }
+        face.clipToOutline = true
+        val fp = FrameLayout.LayoutParams(dp(150), dp(150))
+        fp.gravity = Gravity.CENTER
+        stage.addView(face, fp)
+        orb.avatar = face
+        content.addView(stage, lp(MATCH, dp(280)))
 
         val chips = LinearLayout(this)
         chips.orientation = LinearLayout.HORIZONTAL
