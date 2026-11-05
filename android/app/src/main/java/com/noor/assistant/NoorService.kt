@@ -35,9 +35,29 @@ class NoorService : Service() {
     companion object {
         const val CHANNEL = "noor"
         const val ACTION_STOP = "com.noor.assistant.STOP"
+        const val ACTION_TEXT = "com.noor.assistant.TEXT"
+        const val EXTRA_TEXT = "text"
 
         @Volatile
         var isRunning = false
+
+        @Volatile
+        var instance: NoorService? = null
+
+        fun instanceReady(): Boolean = instance != null
+
+        /** Screen se likha hua message bhejne ke liye. */
+        fun submit(text: String) {
+            val s = instance ?: return
+            s.main.post { s.handleTyped(text) }
+        }
+    }
+
+    private var pill: OverlayPill? = null
+
+    private fun setState(s: String) {
+        Chat.set(s)
+        pill?.update(s)
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -72,6 +92,10 @@ class NoorService : Service() {
         if (!running) {
             running = true
             isRunning = true
+            instance = this
+            pill = OverlayPill(this)
+            pill?.show()
+            setState("listening")
             try {
                 val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
                 wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "noor:listen")
@@ -96,12 +120,20 @@ class NoorService : Service() {
             }
             listen(500)
         }
+        if (intent?.action == ACTION_TEXT) {
+            val typed = intent.getStringExtra(EXTRA_TEXT)
+            if (!typed.isNullOrBlank()) handleTyped(typed)
+        }
         return START_STICKY
     }
 
     override fun onDestroy() {
         running = false
         isRunning = false
+        instance = null
+        pill?.hide()
+        pill = null
+        Chat.set("off", "")
         main.removeCallbacksAndMessages(null)
         try {
             recognizer?.destroy()
@@ -174,6 +206,7 @@ class NoorService : Service() {
         }
         val r = SpeechRecognizer.createSpeechRecognizer(this)
         recognizer = r
+        setState("listening")
         r.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: android.os.Bundle?) {}
             override fun onBeginningOfSpeech() {}
@@ -213,6 +246,37 @@ class NoorService : Service() {
         }
     }
 
+    /** Likha hua message: bolne ki tarah hi kaam hota hai aur jawab awaaz mein aata hai. */
+    private fun handleTyped(text: String) {
+        activeUntil = System.currentTimeMillis() + 60000
+        if (busy) {
+            Chat.add("noor", "Ek second, pehla kaam ho raha hai.")
+            return
+        }
+        stopSpeakingNow()
+        try {
+            recognizer?.cancel()
+        } catch (e: Exception) {
+        }
+        Chat.add("me", text)
+        ask(text)
+    }
+
+    private fun stopSpeakingNow() {
+        speakGen++
+        try {
+            player?.stop()
+            player?.release()
+        } catch (e: Exception) {
+        }
+        player = null
+        try {
+            tts?.stop()
+        } catch (e: Exception) {
+        }
+        speaking = false
+    }
+
     private fun handleHeard(raw: String) {
         val lower = raw.lowercase().trim()
         var text = raw.trim()
@@ -234,6 +298,7 @@ class NoorService : Service() {
             say("Ji, boliye.")
             return
         }
+        Chat.add("me", text)
         ask(text)
     }
 
@@ -256,6 +321,7 @@ class NoorService : Service() {
 
     private fun ask(text: String) {
         busy = true
+        setState("thinking")
         note("Soch rahi hoon...")
         val base = prefs().getString("url", MainActivity.DEFAULT_URL)!!.trim().trimEnd('/')
         val token = prefs().getString("token", "")!!
@@ -312,6 +378,8 @@ class NoorService : Service() {
             doneSpeaking()
             return
         }
+        Chat.add("noor", text)
+        setState("speaking")
         speaking = true
         val g = ++speakGen
         main.postDelayed({ if (speaking && g == speakGen) doneSpeaking() }, 40000)
@@ -381,6 +449,7 @@ class NoorService : Service() {
         speaking = false
         activeUntil = maxOf(activeUntil, System.currentTimeMillis() + 60000)
         note("Noor sun rahi hai. \"Hey Noor\" bolein.")
+        setState("listening")
         listen(200)
     }
 }
