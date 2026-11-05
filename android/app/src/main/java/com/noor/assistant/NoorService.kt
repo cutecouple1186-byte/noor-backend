@@ -53,7 +53,7 @@ class NoorService : Service() {
     private var wake: PowerManager.WakeLock? = null
 
     private val wakeRe = Regex("(hey|hay|hi|he|ae|ai|है|हे|हेय|ऐ|ہے|اے|ہی)?\\s*(noor|nur|nour|नूर|نور)")
-    private val stopRe = Regex("\\bstop\\b|band karo|sunna band|सुनना बंद|बंद करो|بند کرو|سننا بند")
+    private val stopRe = Regex("\\bstop\\b|band karo|sunna band|bas karo|chup ho|chup kar|सुनना बंद|बंद करो|बस करो|चुप|بند کرو|سننا بند|بس کرو|چپ")
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -218,7 +218,7 @@ class NoorService : Service() {
         var text = raw.trim()
         val now = System.currentTimeMillis()
         if (wakeRe.containsMatchIn(lower)) {
-            activeUntil = now + 30000
+            activeUntil = now + 60000
             text = lower.replace(wakeRe, "").trim()
         }
         if (now > activeUntil) {
@@ -379,7 +379,7 @@ class NoorService : Service() {
 
     private fun doneSpeaking() {
         speaking = false
-        activeUntil = maxOf(activeUntil, System.currentTimeMillis() + 15000)
+        activeUntil = maxOf(activeUntil, System.currentTimeMillis() + 60000)
         note("Noor sun rahi hai. \"Hey Noor\" bolein.")
         listen(200)
     }

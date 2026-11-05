@@ -25,10 +25,12 @@ class MainActivity : Activity() {
 
     companion object {
         const val DEFAULT_URL = "https://noor-backend-nine.vercel.app"
+        const val EXTRA_AUTOSTART = "autostart"
     }
 
     private lateinit var status: TextView
     private lateinit var toggle: Button
+    private lateinit var autoBtn: Button
     private lateinit var urlEt: EditText
     private lateinit var tokEt: EditText
 
@@ -99,6 +101,13 @@ class MainActivity : Activity() {
             startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
         })
 
+        autoBtn = btn("") {
+            val sp2 = getSharedPreferences("noor", Context.MODE_PRIVATE)
+            sp2.edit().putBoolean("autostart", !sp2.getBoolean("autostart", true)).apply()
+            refresh()
+        }
+        root.addView(autoBtn)
+
         toggle = btn("") { toggleService() }
         root.addView(toggle)
 
@@ -106,6 +115,17 @@ class MainActivity : Activity() {
         sv.setBackgroundColor(Color.parseColor("#0B0014"))
         sv.addView(root)
         setContentView(sv)
+
+        // Phone on hone par BootReceiver is screen ko kholta hai; yahan se Noor shuru karke screen peeche kar dete hain.
+        if (intent?.getBooleanExtra(EXTRA_AUTOSTART, false) == true) {
+            if (!NoorService.isRunning && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                try {
+                    startForegroundService(Intent(this, NoorService::class.java))
+                } catch (e: Exception) {
+                }
+            }
+            sv.post { moveTaskToBack(true) }
+        }
     }
 
     override fun onResume() {
@@ -159,5 +179,7 @@ class MainActivity : Activity() {
             "\nMic: ${m(mic)}   Contacts: ${m(contacts)}" +
             "\nApps kholna: ${m(overlay)}   Background: ${m(battery)}"
         toggle.text = if (NoorService.isRunning) "Noor BAND karo" else "Noor SHURU karo"
+        val auto = getSharedPreferences("noor", Context.MODE_PRIVATE).getBoolean("autostart", true)
+        autoBtn.text = "Phone on hote hi Noor khud shuru: " + (if (auto) "ON" else "OFF")
     }
 }
