@@ -8,7 +8,7 @@ app.use(express.json({ limit: "3mb" })); // camera frame (chhoti JPEG) ke liye
 
 // Simple rate limit: max 40 requests per minute per IP
 const hits = new Map();
-app.use(["/chat", "/tts"], (req, res, next) => {
+app.use(["/chat", "/tts", "/trending"], (req, res, next) => {
   const now = Date.now();
   const arr = (hits.get(req.ip) || []).filter((t) => now - t < 60000);
   arr.push(now);
@@ -34,6 +34,7 @@ Allowed intents and slots:
 - "call": {"name": string, "number": string (digits only if the user said a number, else "")}
 - "remember": {"text": "short fact worth remembering about the user"}
 - "search": {"query": string}  (current events, news, prices, facts you are unsure of)
+- "trending": {"topic": string}  (user asks what is trending, viral, new or popular today, on TikTok, YouTube, social media or in the news)
 - "weather": {"city": string}
 - "torch": {"on": true or false}
 - "volume": {"level": 0-100 or -1, "direction": "up" or "down" or ""}
@@ -47,6 +48,9 @@ Personality: you are a warm, curious friend, not a robot. Share a small thought 
 Vision: if an image is attached, it is a live frame from the user's back camera. Answer about what you actually see, briefly and accurately. If it is blurry or unclear, say so and ask them to hold steady or come closer. Do not identify real people from their faces.
 Morning briefing: if the user says good morning or asks for a briefing, greet them, say the time and battery, mention relevant user memories, and if a home city is in the memories use intent "weather" with that city.
 For actions, "reply" is what you say right now, e.g. "Theek hai, WhatsApp khol rahi hoon."
+App knowledge: you know popular apps well (TikTok, YouTube, WhatsApp, Instagram, Snapchat, Facebook, Pinterest, CapCut, PicsArt, WPS Office, ChatGPT, Gemini, Claude, Snaptube, Free Fire, Chrome, Gmail, Google Maps and so on). When asked how an app works or where a feature is, explain in 2-3 short simple steps. The device context may list the apps installed on the phone; use that list to know what the user has.
+If you do not know something, or it is about recent events, prices, people, a new app or anything you are unsure of, use intent "search" instead of guessing.
+Calls and messages: when the user asks you to call or message someone, use "call" or "send_message" right away; the phone app will do it, do not ask for confirmation unless the name or text is missing.
 Never claim an action is finished; the phone app performs it.
 Only use "remember" if the user clearly asks you to remember something.`;
 
@@ -127,16 +131,90 @@ async function llm(messages) {
   });
 }
 
+function decodeXml(t) {
+  return String(t || "")
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ").trim();
+}
+function xmlItems(xml, tag) {
+  const out = [];
+  const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "g");
+  let m;
+  while ((m = re.exec(xml))) out.push(m[1]);
+  return out;
+}
+function firstTag(xml, tag) {
+  const m = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`).exec(xml);
+  return m ? decodeXml(m[1]) : "";
+}
+
+// Free, bina key: Google News RSS
+async function googleNews(query, n = 6) {
+  try {
+    const r = await fetch(`https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-PK&gl=PK&ceid=PK:en`, {
+      signal: AbortSignal.timeout(6000),
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+    if (!r.ok) return "";
+    const xml = await r.text();
+    return xmlItems(xml, "item").slice(0, n).map((it) => `- ${firstTag(it, "title")}`).join("\n");
+  } catch (e) {
+    return "";
+  }
+}
+
+// Free, bina key: Google Trends (aaj Pakistan mein kya trend kar raha hai)
+async function googleTrends(geo = "PK", n = 8) {
+  try {
+    const r = await fetch(`https://trends.google.com/trending/rss?geo=${geo}`, {
+      signal: AbortSignal.timeout(6000),
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+    if (!r.ok) return "";
+    const xml = await r.text();
+    return xmlItems(xml, "item")
+      .slice(0, n)
+      .map((it) => {
+        const t = firstTag(it, "title");
+        const traffic = firstTag(it, "ht:approx_traffic");
+        const news = firstTag(it, "ht:news_item_title");
+        return `- ${t}${traffic ? ` (${traffic} searches)` : ""}${news ? `: ${news}` : ""}`;
+      })
+      .join("\n");
+  } catch (e) {
+    return "";
+  }
+}
+
 async function webSearch(query) {
-  if (!TAVILY_API_KEY) return "No search provider is configured. Answer from your own knowledge and say you could not check the internet.";
-  const r = await fetch("https://api.tavily.com/search", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ api_key: TAVILY_API_KEY, query, max_results: 3 }),
-  });
-  if (!r.ok) return "Search failed.";
-  const j = await r.json();
-  return (j.results || []).map((x) => `${x.title}: ${x.content}`).join("\n").slice(0, 3000);
+  if (TAVILY_API_KEY) {
+    try {
+      const r = await fetch("https://api.tavily.com/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ api_key: TAVILY_API_KEY, query, max_results: 3 }),
+        signal: AbortSignal.timeout(7000),
+      });
+      if (r.ok) {
+        const j = await r.json();
+        const t = (j.results || []).map((x) => `${x.title}: ${x.content}`).join("\n").slice(0, 3000);
+        if (t) return t;
+      }
+    } catch (e) {}
+  }
+  const news = await googleNews(query, 8);
+  if (news) return `Latest news headlines for "${query}":\n${news}`;
+  return "Search failed. Answer from your own knowledge and say you could not check the internet.";
+}
+
+async function trendingInfo(topic = "") {
+  const [trends, news] = await Promise.all([
+    googleTrends("PK", 8),
+    googleNews(`${topic || ""} viral trending TikTok YouTube Pakistan`.trim(), 6),
+  ]);
+  return `Google Trends Pakistan (what people are searching right now):\n${trends || "(unavailable)"}\n\nViral/trending headlines:\n${news || "(unavailable)"}`;
 }
 
 // Free, no key needed (open-meteo.com)
@@ -191,6 +269,24 @@ app.get("/manifest.json", (_req, res) =>
   })
 );
 
+app.post("/trending", async (req, res) => {
+  if (APP_TOKEN && req.get("x-app-token") !== APP_TOKEN) return res.status(401).json({ reply: "" });
+  try {
+    const data = await trendingInfo("");
+    const out = await llm([
+      {
+        role: "system",
+        content:
+          'You are NOOR, a warm female voice assistant talking to Rizwan in Roman Urdu. Using the data, tell him in at most 2 short sentences the most interesting thing that is trending or viral in Pakistan right now (start with "Rizwan,"). No markdown, no emojis. Return JSON {"reply": string}.',
+      },
+      { role: "user", content: data },
+    ]);
+    res.json({ reply: out.reply || "" });
+  } catch (e) {
+    res.json({ reply: "" });
+  }
+});
+
 app.post("/chat", async (req, res) => {
   if (APP_TOKEN && req.get("x-app-token") !== APP_TOKEN) {
     return res.status(401).json({ reply: "Unauthorized", intent: "none", slots: {} });
@@ -203,7 +299,7 @@ app.post("/chat", async (req, res) => {
         : "";
     const sys =
       SYSTEM +
-      (context ? `\nDevice context: ${String(context).slice(0, 300)}` : "") +
+      (context ? `\nDevice context: ${String(context).slice(0, 2000)}` : "") +
       (memories.length ? `\nUser-approved memories:\n- ${memories.slice(-20).join("\n- ")}` : "");
     const msgs = [
       { role: "system", content: sys },
@@ -226,6 +322,8 @@ app.post("/chat", async (req, res) => {
     let extra = null;
     if (out.intent === "search" && out.slots && out.slots.query) {
       extra = `Search results:\n${await webSearch(out.slots.query)}`;
+    } else if (out.intent === "trending") {
+      extra = `Trending data:\n${await trendingInfo((out.slots && out.slots.topic) || "")}\nTell the user the 2-3 most interesting things in a friendly way, in their language. Be honest that this comes from Google Trends and news, not directly from TikTok or YouTube.`;
     } else if (out.intent === "weather" && out.slots && out.slots.city) {
       extra = `Weather data:\n${await weather(out.slots.city)}\nDescribe it simply in the user's language (convert the weather code to words).`;
     }

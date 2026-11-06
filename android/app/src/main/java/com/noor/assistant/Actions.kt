@@ -237,7 +237,9 @@ object Actions {
                 var num = digits(s.optString("number"))
                 if (num.isEmpty()) num = digits(contactNumber(ctx, s.optString("name")) ?: "")
                 if (num.isEmpty()) return "Is naam ka number mujhe nahi mila."
-                if (!launch(ctx, Intent(Intent.ACTION_DIAL, Uri.parse("tel:$num")))) return "Dialer nahi khul saka."
+                val canCall = ctx.checkSelfPermission(android.Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
+                val act = if (canCall) Intent.ACTION_CALL else Intent.ACTION_DIAL
+                if (!launch(ctx, Intent(act, Uri.parse("tel:$num")))) return "Call nahi lag saki."
             }
             "play_youtube" -> {
                 val q = Uri.encode(s.optString("query"))
@@ -279,7 +281,17 @@ object Actions {
                 if (num.isEmpty()) num = digits(contactNumber(ctx, s.optString("name")) ?: "")
                 if (num.isEmpty()) return "Is naam ka number mujhe nahi mila."
                 val ok = if (s.optString("app").lowercase() == "whatsapp") {
+                    NoorAccess.arm()
                     view(ctx, "https://wa.me/${intl(num)}?text=${Uri.encode(text)}", "com.whatsapp")
+                } else if (ctx.checkSelfPermission(android.Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED) {
+                    try {
+                        val sm = if (android.os.Build.VERSION.SDK_INT >= 31) ctx.getSystemService(android.telephony.SmsManager::class.java)
+                        else @Suppress("DEPRECATION") android.telephony.SmsManager.getDefault()
+                        sm.sendMultipartTextMessage(num, null, sm.divideMessage(text), null, null)
+                        true
+                    } catch (e: Exception) {
+                        false
+                    }
                 } else {
                     launch(
                         ctx,

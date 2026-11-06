@@ -54,6 +54,46 @@ class NoorService : Service() {
     }
 
     private var pill: OverlayPill? = null
+    private var nextProactive = 0L
+    private var proactiveCount = 0
+
+    private fun scheduleProactive() {
+        // 40 se 90 minute baad Noor khud baat karti hai
+        nextProactive = System.currentTimeMillis() + (40 + (Math.random() * 50).toInt()) * 60000L
+    }
+
+    private val proactiveTick = object : Runnable {
+        override fun run() {
+            if (!running) return
+            try {
+                val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+                val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                val ok = prefs().getBoolean("proactive", true) && hour in 9..22 && pm.isInteractive &&
+                    !speaking && !busy && System.currentTimeMillis() >= nextProactive
+                if (ok) {
+                    scheduleProactive()
+                    proactiveCount++
+                    if (proactiveCount % 2 == 1) speakTrending() else ask("(Noor khud baat shuru kar rahi hai.) Rizwan se apni marzi se koi chhoti, dilchasp baat ya ek sawal karo.")
+                }
+            } catch (e: Exception) {
+            }
+            main.postDelayed(this, 60000)
+        }
+    }
+
+    private fun speakTrending() {
+        busy = true
+        setState("thinking")
+        val base = prefs().getString("url", MainActivity.DEFAULT_URL)!!.trim().trimEnd('/')
+        val token = prefs().getString("token", "")!!
+        Thread {
+            val r = Net.trending(base, token)
+            main.post {
+                busy = false
+                if (r.isNotBlank()) say(r) else doneSpeaking()
+            }
+        }.start()
+    }
 
     private fun setState(s: String) {
         Chat.set(s)
@@ -96,6 +136,8 @@ class NoorService : Service() {
             pill = OverlayPill(this)
             pill?.show()
             setState("listening")
+            scheduleProactive()
+            main.postDelayed(proactiveTick, 60000)
             try {
                 val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
                 wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "noor:listen")
@@ -316,8 +358,22 @@ class NoorService : Service() {
             s += " Battery: ${bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)}%."
         } catch (e: Exception) {
         }
+        try {
+            if (appsCache == null) {
+                val pm = packageManager
+                val main = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                appsCache = pm.queryIntentActivities(main, 0)
+                    .map { it.loadLabel(pm).toString() }
+                    .filter { it.isNotBlank() && it != "Noor" }
+                    .distinct().sorted().joinToString(", ").take(1500)
+            }
+            s += " Installed apps: $appsCache."
+        } catch (e: Exception) {
+        }
         return s
     }
+
+    private var appsCache: String? = null
 
     private fun ask(text: String) {
         busy = true
@@ -365,7 +421,12 @@ class NoorService : Service() {
             "camera" -> say("Camera wala kaam abhi sirf website mein hai.")
             else -> {
                 val fail = Actions.execute(this, intent, slots)
-                say(fail ?: reply)
+                if (fail != null && intent == "open_app" && fail.contains("nahi mili")) {
+                    val nm = slots.optString("name")
+                    ask("\"$nm\" naam ki app mere phone mein nahi mili. Net par dhoondhkar batao ye kya hai.")
+                } else {
+                    say(fail ?: reply)
+                }
             }
         }
     }

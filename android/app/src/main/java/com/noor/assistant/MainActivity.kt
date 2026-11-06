@@ -81,6 +81,7 @@ class MainActivity : Activity() {
     // Settings
     private lateinit var statusTv: TextView
     private lateinit var autoBtn: Button
+    private lateinit var proBtn: Button
     private lateinit var urlEt: EditText
     private lateinit var tokEt: EditText
 
@@ -557,6 +558,14 @@ class MainActivity : Activity() {
         col.addView(button("4) App info (Autostart / Background allow karein)") {
             startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
         })
+        col.addView(button("5) WhatsApp message khud bhejne ke liye: Accessibility mein Noor ON karo") {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        })
+        proBtn = button("") {
+            prefs().edit().putBoolean("proactive", !prefs().getBoolean("proactive", true)).apply()
+            refreshSettings()
+        }
+        col.addView(proBtn)
         autoBtn = button("") {
             prefs().edit().putBoolean("autostart", !prefs().getBoolean("autostart", true)).apply()
             refreshSettings()
@@ -581,6 +590,7 @@ class MainActivity : Activity() {
         statusTv.text = "Mic: ${m(mic)}   Camera: ${m(cam)}   Contacts: ${m(contacts)}" +
             "\nApps kholna: ${m(overlay)}   Background: ${m(battery)}"
         val auto = prefs().getBoolean("autostart", true)
+        proBtn.text = "Noor khud baat kare (trending, gappein): " + (if (prefs().getBoolean("proactive", true)) "ON" else "OFF")
         autoBtn.text = "Phone on hote hi Noor khud shuru: " + (if (auto) "ON" else "OFF")
     }
 
@@ -597,6 +607,8 @@ class MainActivity : Activity() {
         list.add(Manifest.permission.RECORD_AUDIO)
         list.add(Manifest.permission.CAMERA)
         list.add(Manifest.permission.READ_CONTACTS)
+        list.add(Manifest.permission.CALL_PHONE)
+        list.add(Manifest.permission.SEND_SMS)
         if (Build.VERSION.SDK_INT >= 33) list.add(Manifest.permission.POST_NOTIFICATIONS)
         requestPermissions(list.toTypedArray(), 1)
     }

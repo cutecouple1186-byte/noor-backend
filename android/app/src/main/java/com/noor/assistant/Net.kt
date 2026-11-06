@@ -82,4 +82,17 @@ object Net {
             null
         }
     }
+
+    /** Aaj Pakistan mein kya trend/viral hai, Noor ke andaz mein 1-2 jumle. Khali ho to kuch nahi bolna. */
+    fun trending(base: String, token: String): String {
+        return try {
+            val c = open("$base/trending", token)
+            c.readTimeout = 20000
+            c.outputStream.use { it.write("{}".toByteArray()) }
+            if (c.responseCode != 200) return ""
+            JSONObject(c.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }).optString("reply")
+        } catch (e: Exception) {
+            ""
+        }
+    }
 }
