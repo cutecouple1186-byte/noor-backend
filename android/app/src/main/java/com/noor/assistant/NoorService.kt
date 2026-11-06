@@ -379,7 +379,7 @@ class NoorService : Service() {
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
             .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
             .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-            .putExtra(RecognizerIntent.EXTRA_ADDITIONAL_LANGUAGES, arrayOf("ur-PK", "en-IN"))
+            .putExtra("android.speech.extra.ADDITIONAL_LANGUAGES", arrayOf("ur-PK", "en-IN"))
             .putExtra("android.speech.extras.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 1100L)
             .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
         try {
