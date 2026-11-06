@@ -46,6 +46,22 @@ class NoorService : Service() {
 
         fun instanceReady(): Boolean = instance != null
 
+        /** Mic button: bina "Hey Noor" ke ab bolo. */
+        fun talkNow() {
+            val s = instance ?: return
+            s.main.post {
+                s.activeUntil = System.currentTimeMillis() + 60000
+                s.stopSpeakingNow()
+                try {
+                    s.recognizer?.cancel()
+                } catch (e: Exception) {
+                }
+                s.busy = false
+                s.setState("listening")
+                s.listen(100)
+            }
+        }
+
         /** Screen se likha hua message bhejne ke liye. */
         fun submit(text: String) {
             val s = instance ?: return
@@ -315,6 +331,11 @@ class NoorService : Service() {
 
     private fun startRecognizer() {
         if (!running || speaking || busy) return
+        if (prefs().getBoolean("ptt", false) && System.currentTimeMillis() > activeUntil) {
+            setState("idle")
+            note("Mic dabakar bolein.")
+            return
+        }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             note("Phone mein speech service nahi mili (Google app chahiye).")
             return
@@ -357,6 +378,9 @@ class NoorService : Service() {
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
             .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            .putExtra(RecognizerIntent.EXTRA_ADDITIONAL_LANGUAGES, arrayOf("ur-PK", "en-IN"))
+            .putExtra("android.speech.extras.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 1100L)
             .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
         try {
             r.startListening(i)
@@ -452,8 +476,33 @@ class NoorService : Service() {
 
     private var appsCache: String? = null
 
+    private var lookDepth = 0
+
+    /** Screen padhkar agla kadam LLM se poochho (YouTube search, subscribe, follow waghera). */
+    private fun scheduleLook(goal: String, delay: Long) {
+        if (lookDepth >= 8) {
+            lookDepth = 0
+            say("Itna hi kar saki Rizwan. Baaki aap dekh lein ya dobara bolein.")
+            return
+        }
+        lookDepth++
+        busy = true
+        setState("thinking")
+        main.postDelayed({
+            val scr = NoorAccess.readScreen()
+            busy = false
+            if (scr.isBlank()) {
+                lookDepth = 0
+                say("Screen padh nahi saki. Settings mein Accessibility mein Noor ON karein.")
+            } else {
+                ask("(SCREEN DEKHA) Maqsad: $goal. Screen par ye likha hai ([ ] mein wale dabne wale hain): $scr. Agla sirf ek kadam batao: intent screen (action tap_text / type / enter / scroll_down / back) ke saath look true aur goal wahi, reply khali. Agar maqsad poora ho gaya ho to intent none aur ek chhota jawab.")
+            }
+        }, delay)
+    }
+
     private fun ask(textIn: String) {
         var text = textIn
+        if (!text.startsWith("(SCREEN")) lookDepth = 0
         val rem = activeReminder
         if (rem != null && !text.startsWith("(Noor khud")) {
             activeReminder = null
@@ -469,7 +518,16 @@ class NoorService : Service() {
         val ctx = context()
         Thread {
             val res = try {
-                Net.chat(base, token, text, hist, mem, ctx)
+                var img = ""
+            if (MainActivity.resumed && !text.startsWith("(SCREEN")) {
+                val latch = java.util.concurrent.CountDownLatch(1)
+                MainActivity.requestFrame {
+                    img = it
+                    latch.countDown()
+                }
+                latch.await(2500, java.util.concurrent.TimeUnit.MILLISECONDS)
+            }
+            Net.chat(base, token, text, hist, mem, ctx, img)
             } catch (e: Exception) {
                 JSONObject().put("reply", "Internet check karein, server se connection nahi ho paya.")
                     .put("intent", "none").put("slots", JSONObject())
@@ -501,13 +559,32 @@ class NoorService : Service() {
                     say(reply)
                 }
             }
-            "camera" -> say("Camera wala kaam abhi sirf website mein hai.")
+            "camera" -> {
+                val on = slots.optBoolean("on", true)
+                try {
+                    startActivity(
+                        Intent(this, MainActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                            .putExtra(MainActivity.EXTRA_VISION, if (on) "on" else "off")
+                    )
+                    say(if (reply.isNotBlank()) reply else if (on) "Camera on kar diya Rizwan. Noor app khuli rakhna, ab poochho kya dikh raha hai." else "Camera band kar diya.")
+                } catch (e: Exception) {
+                    say("Camera kholne ke liye Settings mein button 2 se 'dusri app ke upar dikhna' allow karein.")
+                }
+            }
+            "screen_look" -> scheduleLook(slots.optString("goal"), 800)
             "reminder" -> {
                 val whenTxt = addReminder(slots)
                 say(if (reply.isNotBlank()) reply else "Theek hai Rizwan, $whenTxt par yaad dila dungi.")
             }
             else -> {
                 val fail = Actions.execute(this, intent, slots)
+                if (fail == null && slots.optBoolean("look", false)) {
+                    if (reply.isNotBlank()) Chat.add("noor", reply)
+                    busy = false
+                    scheduleLook(slots.optString("goal"), if (intent == "open_app") 3500 else 1500)
+                    return
+                }
                 if (fail != null && intent == "open_app" && fail.contains("nahi mili")) {
                     val nm = slots.optString("name")
                     ask("\"$nm\" naam ki app mere phone mein nahi mili. Net par dhoondhkar batao ye kya hai.")

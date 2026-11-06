@@ -29,7 +29,8 @@ object Net {
         message: String,
         history: List<Pair<String, String>>,
         memories: List<String>,
-        context: String
+        context: String,
+        image: String = ""
     ): JSONObject {
         val body = JSONObject()
         body.put("message", message)
@@ -42,6 +43,7 @@ object Net {
         for (x in memories.takeLast(20)) m.put(x)
         body.put("memories", m)
         body.put("context", context)
+        if (image.isNotBlank()) body.put("image", image)
 
         var last = fail("Maaf kijiye, abhi mujhe jawab nahi mil raha.")
         for (attempt in 0..1) {

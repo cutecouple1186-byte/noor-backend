@@ -384,6 +384,8 @@ if("speechSynthesis" in window){speechSynthesis.onvoiceschanged=function(){}}
 updToggle();updLang();updMem();
 addMsg("noor","Hello, main NOOR hoon. Orb dabakar bolein, ya neeche type karein.");
 addMsg("sys","Ye website version hai: mic tabhi chalta hai jab page khula ho. Lock-screen aur background ke liye asli Android app (APK) chahiye.");
+window.grabFrame=grabFrame;
+if(/[?&]app=1/.test(location.search)){setTimeout(function(){try{camStart()}catch(e){}},700)}
 })();
 </script>
 </body>

@@ -23,6 +23,12 @@ class NoorAccess : AccessibilityService() {
             pendingUntil = System.currentTimeMillis() + 20000
         }
 
+        /** Abhi screen par jo likha hai (buttons ke naam waghera), LLM ko dikhane ke liye. */
+        fun readScreen(): String {
+            val s = instance ?: return ""
+            return s.dump()
+        }
+
         /** Screen ka kaam. null = ho gaya, warna wajah (bolne ke liye). */
         fun screen(action: String, text: String, x: Int, y: Int): String? {
             val s = instance ?: return "Pehle Settings mein Accessibility mein Noor ko ON karein."
@@ -84,6 +90,8 @@ class NoorAccess : AccessibilityService() {
             "swipe_right" -> swipe(w * 0.2f, h * 0.5f, w * 0.8f, h * 0.5f, 250)
             "tap" -> swipe(w * x.coerceIn(0, 100) / 100f, h * y.coerceIn(0, 100) / 100f, w * x.coerceIn(0, 100) / 100f + 1f, h * y.coerceIn(0, 100) / 100f + 1f, 60)
             "tap_text" -> return tapText(text)
+            "type" -> return typeText(text)
+            "enter" -> return pressEnter()
             else -> return "Ye screen ka kaam mujhe samajh nahi aaya."
         }
         return if (ok) null else "Screen ka kaam nahi ho saka."
@@ -97,6 +105,54 @@ class NoorAccess : AccessibilityService() {
         while (n != null && !n.isClickable) n = n.parent
         if (n == null) return "\"$text\" dabane layak nahi hai."
         return if (n.performAction(AccessibilityNodeInfo.ACTION_CLICK)) null else "Dabane mein masla aaya."
+    }
+
+    private fun typeText(text: String): String? {
+        val root = rootInActiveWindow ?: return "Screen padh nahi saki."
+        var f: AccessibilityNodeInfo? = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+        if (f == null) f = firstEditable(root)
+        if (f == null) return "Likhne ki jagah nahi mili."
+        val b = android.os.Bundle()
+        b.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+        return if (f.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, b)) null else "Likh nahi saki."
+    }
+
+    private fun firstEditable(n: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (n.isEditable) return n
+        for (i in 0 until n.childCount) {
+            val c = n.getChild(i) ?: continue
+            val r = firstEditable(c)
+            if (r != null) return r
+        }
+        return null
+    }
+
+    private fun pressEnter(): String? {
+        val root = rootInActiveWindow ?: return "Screen padh nahi saki."
+        val f = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: firstEditable(root)
+        if (f != null && android.os.Build.VERSION.SDK_INT >= 30 &&
+            f.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
+        ) return null
+        for (d in listOf("Search", "search", "Go", "Enter")) {
+            val l = root.findAccessibilityNodeInfosByText(d)
+            var n: AccessibilityNodeInfo? = l?.firstOrNull()
+            while (n != null && !n.isClickable) n = n.parent
+            if (n != null && n.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return null
+        }
+        return "Enter nahi dab saka."
+    }
+
+    private fun dump(): String {
+        val root = rootInActiveWindow ?: return ""
+        val out = LinkedHashSet<String>()
+        fun walk(n: AccessibilityNodeInfo?, depth: Int) {
+            if (n == null || depth > 25 || out.size > 60) return
+            val t = (n.text?.toString() ?: n.contentDescription?.toString() ?: "").trim()
+            if (t.isNotEmpty() && t.length < 60) out.add(if (n.isClickable) "[$t]" else t)
+            for (i in 0 until n.childCount) walk(n.getChild(i), depth + 1)
+        }
+        walk(root, 0)
+        return (root.packageName?.toString() ?: "") + ": " + out.joinToString(" | ")
     }
 
     override fun onInterrupt() {}

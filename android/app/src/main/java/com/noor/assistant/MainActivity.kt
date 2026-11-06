@@ -41,6 +41,31 @@ class MainActivity : Activity() {
     companion object {
         const val DEFAULT_URL = "https://noor-backend-nine.vercel.app"
         const val EXTRA_AUTOSTART = "autostart"
+        const val EXTRA_VISION = "vision"
+
+        @Volatile
+        var instance: MainActivity? = null
+
+        @Volatile
+        var resumed = false
+
+        /** Camera tab khula ho to uska ek frame (data-URL) do, warna "". */
+        fun requestFrame(cb: (String) -> Unit) {
+            val a = instance
+            if (a == null || !resumed || a.current != 1 || a.web == null) {
+                cb("")
+                return
+            }
+            a.runOnUiThread {
+                try {
+                    a.web!!.evaluateJavascript("(function(){try{return grabFrame()}catch(e){return ''}})()") { v ->
+                        cb(try { org.json.JSONArray("[" + (v ?: "null") + "]").optString(0, "").let { if (it == "null") "" else it } } catch (e: Exception) { "" })
+                    }
+                } catch (e: Exception) {
+                    cb("")
+                }
+            }
+        }
 
         val BG = Color.parseColor("#070B14")
         val CARD = Color.parseColor("#0E1726")
@@ -82,6 +107,7 @@ class MainActivity : Activity() {
     private lateinit var statusTv: TextView
     private lateinit var autoBtn: Button
     private lateinit var proBtn: Button
+    private lateinit var pttBtn: Button
     private lateinit var urlEt: EditText
     private lateinit var tokEt: EditText
 
@@ -169,8 +195,24 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        when (intent?.getStringExtra(EXTRA_VISION)) {
+            "on" -> show(1)
+            "off" -> {
+                show(0)
+                web?.destroy()
+                web = null
+                visionPage.removeAllViews()
+            }
+        }
+    }
+
     override fun onResume() {
         super.onResume()
+        instance = this
+        resumed = true
         Chat.listener = { refreshHome() }
         refreshHome()
         refreshSettings()
@@ -178,6 +220,7 @@ class MainActivity : Activity() {
     }
 
     override fun onPause() {
+        resumed = false
         Chat.listener = null
         saveSettings()
         super.onPause()
@@ -346,6 +389,13 @@ class MainActivity : Activity() {
                 false
             }
         }
+        val mic = tv("🎤", 20f, Color.parseColor("#04121C"), true)
+        mic.gravity = Gravity.CENTER
+        mic.background = shape(PINK, 24)
+        mic.setOnClickListener { talkNow() }
+        val mp = lp(dp(48), dp(48))
+        mp.rightMargin = dp(8)
+        row.addView(mic, mp)
         row.addView(input, lp(0, WRAP, 1f))
         val send = tv("➤", 20f, Color.parseColor("#04121C"), true)
         send.gravity = Gravity.CENTER
@@ -356,6 +406,24 @@ class MainActivity : Activity() {
         row.addView(send, sp)
         col.addView(row, lp(MATCH, WRAP))
         return col
+    }
+
+    /** Mic dabakar bolo: Noor ab sirf tumhe sunegi (bina Hey Noor ke). */
+    private fun talkNow() {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            askPermissions()
+            return
+        }
+        saveSettings()
+        if (!NoorService.isRunning) {
+            try {
+                startForegroundService(Intent(this, NoorService::class.java))
+            } catch (e: Exception) {
+            }
+            input.postDelayed({ NoorService.talkNow() }, 1200)
+        } else {
+            NoorService.talkNow()
+        }
     }
 
     private fun doSend() {
@@ -488,7 +556,7 @@ class MainActivity : Activity() {
             }
         }
         val base = (prefs().getString("url", DEFAULT_URL) ?: DEFAULT_URL).trim().trimEnd('/')
-        w.loadUrl(base)
+        w.loadUrl(base + "/?app=1")
         visionPage.addView(w, FrameLayout.LayoutParams(MATCH, MATCH))
         web = w
     }
@@ -566,6 +634,11 @@ class MainActivity : Activity() {
             refreshSettings()
         }
         col.addView(proBtn)
+        pttBtn = button("") {
+            prefs().edit().putBoolean("ptt", !prefs().getBoolean("ptt", false)).apply()
+            refreshSettings()
+        }
+        col.addView(pttBtn)
         autoBtn = button("") {
             prefs().edit().putBoolean("autostart", !prefs().getBoolean("autostart", true)).apply()
             refreshSettings()
@@ -590,6 +663,7 @@ class MainActivity : Activity() {
         statusTv.text = "Mic: ${m(mic)}   Camera: ${m(cam)}   Contacts: ${m(contacts)}" +
             "\nApps kholna: ${m(overlay)}   Background: ${m(battery)}"
         val auto = prefs().getBoolean("autostart", true)
+        pttBtn.text = "Sirf mic dabane par sunna (Hey Noor ke bina): " + (if (prefs().getBoolean("ptt", false)) "ON" else "OFF")
         proBtn.text = "Noor khud baat kare (trending, gappein): " + (if (prefs().getBoolean("proactive", true)) "ON" else "OFF")
         autoBtn.text = "Phone on hote hi Noor khud shuru: " + (if (auto) "ON" else "OFF")
     }
