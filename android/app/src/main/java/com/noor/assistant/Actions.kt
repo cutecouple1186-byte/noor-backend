@@ -275,6 +275,10 @@ object Actions {
                     .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, begin + 3600000L)
                 if (!launch(ctx, i)) return "Calendar nahi khul saka."
             }
+            "screen" -> {
+                val r = NoorAccess.screen(s.optString("action"), s.optString("text"), s.optInt("x", 50), s.optInt("y", 50))
+                if (r != null) return r
+            }
             "send_message" -> {
                 val text = s.optString("text")
                 var num = digits(s.optString("number"))

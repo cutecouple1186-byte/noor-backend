@@ -81,6 +81,82 @@ class NoorService : Service() {
         }
     }
 
+    // ---------- yaad dilana ----------
+    private var activeReminder: String? = null
+    private var reminderRepeats = 0
+    private var nextRemind = 0L
+
+    private fun loadReminders(): MutableList<Pair<Long, String>> {
+        val out = ArrayList<Pair<Long, String>>()
+        for (line in (prefs().getString("reminders", "") ?: "").split("\n")) {
+            val k = line.indexOf('|')
+            if (k > 0) {
+                val t = line.substring(0, k).toLongOrNull() ?: continue
+                out.add(Pair(t, line.substring(k + 1)))
+            }
+        }
+        return out
+    }
+
+    private fun saveReminders(l: List<Pair<Long, String>>) {
+        prefs().edit().putString("reminders", l.joinToString("\n") { "${it.first}|${it.second.replace("\n", " ")}" }).apply()
+    }
+
+    private fun addReminder(slots: JSONObject): String {
+        val text = slots.optString("text").ifBlank { "kuch zaroori kaam" }
+        val cal = java.util.Calendar.getInstance()
+        val minutes = slots.optInt("minutes", 0)
+        val hour = slots.optInt("hour", -1)
+        if (minutes > 0) {
+            cal.add(java.util.Calendar.MINUTE, minutes)
+        } else if (hour >= 0) {
+            cal.set(java.util.Calendar.HOUR_OF_DAY, hour)
+            cal.set(java.util.Calendar.MINUTE, slots.optInt("minute", 0))
+            cal.set(java.util.Calendar.SECOND, 0)
+            cal.add(java.util.Calendar.DAY_OF_YEAR, slots.optInt("day_offset", 0))
+            if (cal.timeInMillis <= System.currentTimeMillis()) cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        } else {
+            cal.add(java.util.Calendar.MINUTE, 30)
+        }
+        val l = loadReminders()
+        l.add(Pair(cal.timeInMillis, text))
+        saveReminders(l)
+        return java.text.SimpleDateFormat("h:mm a", Locale.ENGLISH).format(Date(cal.timeInMillis))
+    }
+
+    private val reminderTick = object : Runnable {
+        override fun run() {
+            if (!running) return
+            try {
+                val now = System.currentTimeMillis()
+                if (activeReminder == null) {
+                    val l = loadReminders()
+                    val due = l.firstOrNull { it.first <= now }
+                    if (due != null) {
+                        l.remove(due)
+                        saveReminders(l)
+                        activeReminder = due.second
+                        reminderRepeats = 0
+                        nextRemind = 0L
+                    }
+                }
+                val r = activeReminder
+                if (r != null && !speaking && !busy && now >= nextRemind) {
+                    if (reminderRepeats >= 15) {
+                        activeReminder = null
+                    } else {
+                        reminderRepeats++
+                        nextRemind = now + 60000
+                        stopSpeakingNow()
+                        say("Rizwan, yaad dilana tha: $r. Bataiye, ho gaya?")
+                    }
+                }
+            } catch (e: Exception) {
+            }
+            main.postDelayed(this, 10000)
+        }
+    }
+
     private fun speakTrending() {
         busy = true
         setState("thinking")
@@ -138,6 +214,7 @@ class NoorService : Service() {
             setState("listening")
             scheduleProactive()
             main.postDelayed(proactiveTick, 60000)
+            main.postDelayed(reminderTick, 10000)
             try {
                 val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
                 wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "noor:listen")
@@ -375,7 +452,13 @@ class NoorService : Service() {
 
     private var appsCache: String? = null
 
-    private fun ask(text: String) {
+    private fun ask(textIn: String) {
+        var text = textIn
+        val rem = activeReminder
+        if (rem != null && !text.startsWith("(Noor khud")) {
+            activeReminder = null
+            text = "(Noor ne abhi yaad dilaya tha: $rem.) $text"
+        }
         busy = true
         setState("thinking")
         note("Soch rahi hoon...")
@@ -419,6 +502,10 @@ class NoorService : Service() {
                 }
             }
             "camera" -> say("Camera wala kaam abhi sirf website mein hai.")
+            "reminder" -> {
+                val whenTxt = addReminder(slots)
+                say(if (reply.isNotBlank()) reply else "Theek hai Rizwan, $whenTxt par yaad dila dungi.")
+            }
             else -> {
                 val fail = Actions.execute(this, intent, slots)
                 if (fail != null && intent == "open_app" && fail.contains("nahi mili")) {

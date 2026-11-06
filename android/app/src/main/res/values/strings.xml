@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="access_desc">Noor sirf tab WhatsApp ka Send button dabati hai jab aap usse message bhejne ko kehte hain.</string>
+    <string name="access_desc">Noor WhatsApp ka Send button dabati hai aur sirf aapke kehne par screen chalati hai (back, scroll, tap). Ye kisi ka data kahin nahi bhejti.</string>
 </resources>
