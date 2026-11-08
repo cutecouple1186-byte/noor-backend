@@ -30,6 +30,7 @@ class LiveSession(
     private val base: String,
     private val token: String,
     private val memories: String,
+    private val gateMin: Int,
     private val onState: (String) -> Unit,
     private val onText: (String, String) -> Unit,
     private val onTool: (String, JSONObject, (String) -> Unit) -> Unit,
@@ -288,10 +289,27 @@ class LiveSession(
             try {
                 r.startRecording()
                 val buf = ByteArray(3200)
+                var floor = 250.0
+                var openUntil = 0L
                 while (!closed) {
                     val n = r.read(buf, 0, buf.size)
                     if (n <= 0) continue
                     if (halfDuplex && (playing || q.isNotEmpty())) continue
+                    // Awaaz filter: sirf paas se, zor se bolne wali awaaz aage jaye. Door ka music/TV chup.
+                    if (gateMin > 0) {
+                        var sum = 0.0
+                        var k = 0
+                        while (k + 1 < n) {
+                            val v = (buf[k].toInt() and 0xFF) or (buf[k + 1].toInt() shl 8)
+                            sum += v.toDouble() * v.toDouble()
+                            k += 2
+                        }
+                        val rms = Math.sqrt(sum / maxOf(1, n / 2))
+                        val now = System.currentTimeMillis()
+                        if (rms < floor * 2) floor = maxOf(80.0, floor * 0.95 + rms * 0.05)
+                        if (rms > maxOf(floor * 3.0, gateMin.toDouble())) openUntil = now + 600
+                        if (now > openUntil) java.util.Arrays.fill(buf, 0, n, 0.toByte())
+                    }
                     val msg = JSONObject().put(
                         "realtimeInput",
                         JSONObject().put(
