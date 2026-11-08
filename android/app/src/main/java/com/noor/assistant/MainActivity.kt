@@ -109,7 +109,6 @@ class MainActivity : Activity() {
     private lateinit var proBtn: Button
     private lateinit var pttBtn: Button
     private lateinit var gateBtn: Button
-    private lateinit var gateBtn: Button
     private lateinit var liveBtn: android.widget.TextView
     private lateinit var urlEt: EditText
     private lateinit var tokEt: EditText
@@ -672,11 +671,6 @@ class MainActivity : Activity() {
         }
         col.addView(pttBtn)
         gateBtn = button("") {
-            prefs().edit().putInt("gate", (prefs().getInt("gate", 1) + 1) % 4).apply()
-            refreshSettings()
-        }
-        col.addView(gateBtn)
-        gateBtn = button("") {
             val cur = prefs().getInt("gate", 900)
             val nxt = when (cur) { 0 -> 600; 600 -> 900; 900 -> 1500; else -> 0 }
             prefs().edit().putInt("gate", nxt).apply()
@@ -708,7 +702,6 @@ class MainActivity : Activity() {
             "\nApps kholna: ${m(overlay)}   Background: ${m(battery)}"
         val auto = prefs().getBoolean("autostart", true)
         gateBtn.text = "Live mein awaaz filter (door ki awaaz band): " + when (prefs().getInt("gate", 900)) { 0 -> "BAND"; 600 -> "HALKA"; 900 -> "DARMIYANA"; else -> "SAKHT" } + "  (dabakar badlein)"
-        gateBtn.text = "Awaaz filter (Live, door ki awaaz kam): " + listOf("Band", "Halka", "Medium", "Zyada")[prefs().getInt("gate", 1).coerceIn(0, 3)]
         pttBtn.text = "Sirf mic dabane par sunna (Hey Noor ke bina): " + (if (prefs().getBoolean("ptt", false)) "ON" else "OFF")
         proBtn.text = "Noor khud baat kare (trending, gappein): " + (if (prefs().getBoolean("proactive", true)) "ON" else "OFF")
         autoBtn.text = "Phone on hote hi Noor khud shuru: " + (if (auto) "ON" else "OFF")
