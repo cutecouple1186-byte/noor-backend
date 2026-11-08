@@ -97,4 +97,19 @@ object Net {
             ""
         }
     }
+
+    /** Server se tasveer (bytes) lo. Na bane to null. */
+    fun image(base: String, token: String, prompt: String): ByteArray? {
+        return try {
+            val c = open("$base/image", token)
+            c.connectTimeout = 8000
+            c.readTimeout = 60000
+            c.outputStream.use { it.write(JSONObject().put("prompt", prompt).toString().toByteArray(Charsets.UTF_8)) }
+            if (c.responseCode !in 200..299) return null
+            val j = JSONObject(c.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
+            android.util.Base64.decode(j.optString("image"), android.util.Base64.DEFAULT)
+        } catch (e: Exception) {
+            null
+        }
+    }
 }

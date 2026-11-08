@@ -47,12 +47,16 @@ Allowed intents and slots:
 - "reminder": {"text": string, "minutes": number (if the user said "in N minutes/hours", convert to minutes, else 0), "hour": 0-23 (clock time, else -1), "minute": 0-59, "day_offset": 0 for today, 1 for tomorrow}  (user asks you to remind/yaad dilana at some time; you will speak up on your own at that time and repeat until they answer)
 - "screen": {"action": "back" or "home" or "recents" or "scroll_down" or "scroll_up" or "swipe_left" or "swipe_right" or "tap_text" or "type" or "enter" or "tap", "text": string (button label for tap_text, or the words to type), "x": 0-100, "y": 0-100 (percent, for tap), "look": true or false, "goal": string}  (control the phone screen)
 - "screen_look": {"goal": string}  (read what is on the screen now, then decide the next step)
+- "image": {"prompt": string (detailed English prompt)}  (user asks you to make/draw/generate a picture; reply = one short line like "Bana rahi hoon")
+- "copy": {"text": string}  (put text on the phone clipboard, e.g. a video title, description or hashtags the user asked you to write)
 Personality: you are a warm, curious friend, not a robot. Share a small thought of your own now and then, and often (not every time) end with one short, natural question back to the user about their day, plans or interests. Never ask more than one question at a time.
 Vision: if an image is attached, it is a live frame from the user's back camera. Answer about what you actually see, briefly and accurately. If it is blurry or unclear, say so and ask them to hold steady or come closer. Do not identify real people from their faces.
 Morning briefing: if the user says good morning or asks for a briefing, greet them, say the time and battery, mention relevant user memories, and if a home city is in the memories use intent "weather" with that city.
 For actions, "reply" is what you say right now, e.g. "Theek hai, WhatsApp khol rahi hoon."
 App knowledge: you know popular apps well (TikTok, YouTube, WhatsApp, Instagram, Snapchat, Facebook, Pinterest, CapCut, PicsArt, WPS Office, ChatGPT, Gemini, Claude, Snaptube, Free Fire, Chrome, Gmail, Google Maps and so on). When asked how an app works or where a feature is, explain in 2-3 short simple steps. The device context may list the apps installed on the phone; use that list to know what the user has.
 If you do not know something, or it is about recent events, prices, people, a new app or anything you are unsure of, use intent "search" instead of guessing.
+Briefing: if the message starts with "(BRIEFING)", give Rizwan a warm 5-short-sentence morning briefing: greeting, today's date, weather (use search/weather if you can), one or two trending things, and one idea for his YouTube channel Purrfect AI (cartoon cat shorts). Speak, no lists.
+YouTube helper: Rizwan runs the channel Purrfect AI (cartoon cat shorts). When he asks for a title, description or hashtags, write them yourself (catchy title, 2-3 line description, 8-12 hashtags), say them briefly, and use intent "copy" with the full text so he can paste it. You cannot change the channel directly from the phone; say "Claude se lagwa dein" if he wants the change applied.
 Screen agent: for multi-step jobs inside an app (search on YouTube, subscribe, follow, like, press a button), do ONE step at a time. First use open_app with "look": true and "goal" (the whole job). Each time you get a message starting with "(SCREEN DEKHA)" it lists the labels on the screen ([x] = tappable): reply with the single next intent "screen" (tap_text with a label copied exactly from the list, or type, or enter) with "look": true, the same "goal", and an EMPTY reply. Typical YouTube search: tap_text "Search" -> type the query -> enter -> tap the video -> tap_text "Subscribe". When the goal is done, use intent "none" with a one-sentence reply. If the needed button is not on screen, scroll_down or say you could not find it. Never tap anything that spends money or posts publicly unless the user asked for exactly that.
 Camera: if the user asks to turn the camera on, use intent "camera" (on true); a live frame is attached to later messages as an image while the camera screen is open.
 Games: you can open a game and tap or swipe the screen only when told, step by step. You cannot play a game by yourself; say so honestly if asked.
@@ -370,6 +374,47 @@ function pcmToWav(pcm, rate) {
   h.writeUInt32LE(pcm.length, 40);
   return Buffer.concat([h, pcm]);
 }
+
+// Tasveer banana: pehle Gemini image model, na chale to Pollinations (free).
+app.post("/image", async (req, res) => {
+  if (APP_TOKEN && req.get("x-app-token") !== APP_TOKEN) return res.status(401).json({});
+  const prompt = String((req.body && req.body.prompt) || "").slice(0, 600).trim();
+  if (!prompt) return res.status(400).json({});
+  const models = (process.env.IMAGE_MODELS || "gemini-2.5-flash-image,gemini-2.0-flash-preview-image-generation").split(",");
+  for (const m of models) {
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m.trim()}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": LLM_API_KEY },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseModalities: ["TEXT", "IMAGE"] } }),
+        signal: AbortSignal.timeout(25000),
+      });
+      if (!r.ok) {
+        console.error(`image ${m} failed ${r.status}:`, (await r.text()).slice(0, 200));
+        continue;
+      }
+      const j = await r.json();
+      const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
+      const p = parts.find((x) => x.inlineData && x.inlineData.data);
+      if (p) return res.json({ image: p.inlineData.data, mime: p.inlineData.mimeType || "image/png", by: m });
+    } catch (e) {
+      console.error(`image ${m} error:`, String(e.message || e).slice(0, 150));
+    }
+  }
+  try {
+    const r = await fetch(`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true`, {
+      signal: AbortSignal.timeout(40000),
+    });
+    if (r.ok) {
+      const buf = Buffer.from(await r.arrayBuffer());
+      return res.json({ image: buf.toString("base64"), mime: r.headers.get("content-type") || "image/jpeg", by: "pollinations" });
+    }
+    console.error("pollinations failed", r.status);
+  } catch (e) {
+    console.error("pollinations error:", String(e.message || e).slice(0, 150));
+  }
+  res.status(502).json({});
+});
 
 app.post("/tts", async (req, res) => {
   if (APP_TOKEN && req.get("x-app-token") !== APP_TOKEN) return res.status(401).end();

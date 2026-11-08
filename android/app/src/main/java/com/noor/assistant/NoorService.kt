@@ -84,6 +84,16 @@ class NoorService : Service() {
             try {
                 val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
                 val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                val today = SimpleDateFormat("yyyyMMdd", Locale.ENGLISH).format(Date())
+                if (prefs().getBoolean("briefing", true) && hour in 8..11 && pm.isInteractive && !speaking && !busy &&
+                    prefs().getString("lastBriefing", "") != today
+                ) {
+                    prefs().edit().putString("lastBriefing", today).apply()
+                    activeUntil = System.currentTimeMillis() + 60000
+                    ask("(BRIEFING) Rizwan ke liye aaj subah ki briefing do.")
+                    main.postDelayed(this, 60000)
+                    return
+                }
                 val ok = prefs().getBoolean("proactive", true) && hour in 9..22 && pm.isInteractive &&
                     !speaking && !busy && System.currentTimeMillis() >= nextProactive
                 if (ok) {
@@ -476,6 +486,48 @@ class NoorService : Service() {
 
     private var appsCache: String? = null
 
+    private fun makeImage(prompt: String) {
+        val base = prefs().getString("url", MainActivity.DEFAULT_URL)!!.trim().trimEnd('/')
+        val token = prefs().getString("token", "")!!
+        Thread {
+            val bytes = Net.image(base, token, prompt)
+            main.post {
+                if (bytes == null || bytes.size < 1000) {
+                    Chat.add("noor", "Tasveer nahi ban saki, thodi der baad dobara bolein.")
+                    return@post
+                }
+                try {
+                    val name = "Noor_" + System.currentTimeMillis() + ".jpg"
+                    val cv = android.content.ContentValues()
+                    cv.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name)
+                    cv.put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                    if (android.os.Build.VERSION.SDK_INT >= 29) {
+                        cv.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Noor")
+                    }
+                    val uri = contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv)
+                    if (uri != null) {
+                        val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        contentResolver.openOutputStream(uri)?.use { o ->
+                            if (bmp != null) bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, o) else o.write(bytes)
+                        }
+                        Chat.add("noor", "Tasveer ban gayi, Gallery mein Pictures/Noor mein hai.")
+                        try {
+                            startActivity(
+                                Intent(Intent.ACTION_VIEW).setDataAndType(uri, "image/jpeg")
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            )
+                        } catch (e: Exception) {
+                        }
+                    } else {
+                        Chat.add("noor", "Tasveer save nahi ho saki.")
+                    }
+                } catch (e: Exception) {
+                    Chat.add("noor", "Tasveer save nahi ho saki.")
+                }
+            }
+        }.start()
+    }
+
     private var lookDepth = 0
 
     /** Screen padhkar agla kadam LLM se poochho (YouTube search, subscribe, follow waghera). */
@@ -571,6 +623,20 @@ class NoorService : Service() {
                 } catch (e: Exception) {
                     say("Camera kholne ke liye Settings mein button 2 se 'dusri app ke upar dikhna' allow karein.")
                 }
+            }
+            "copy" -> {
+                val t = slots.optString("text")
+                if (t.isNotBlank()) {
+                    val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("Noor", t))
+                    Chat.add("noor", t)
+                }
+                say(if (reply.isNotBlank()) reply else "Copy kar diya Rizwan, ab kahin bhi paste kar sakte hain.")
+            }
+            "image" -> {
+                val pr = slots.optString("prompt").ifBlank { userText }
+                say(if (reply.isNotBlank()) reply else "Theek hai, tasveer bana rahi hoon.")
+                makeImage(pr)
             }
             "screen_look" -> scheduleLook(slots.optString("goal"), 800)
             "reminder" -> {
