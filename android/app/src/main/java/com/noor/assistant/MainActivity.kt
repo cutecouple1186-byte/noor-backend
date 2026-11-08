@@ -108,6 +108,7 @@ class MainActivity : Activity() {
     private lateinit var autoBtn: Button
     private lateinit var proBtn: Button
     private lateinit var pttBtn: Button
+    private lateinit var liveBtn: android.widget.TextView
     private lateinit var urlEt: EditText
     private lateinit var tokEt: EditText
 
@@ -213,7 +214,7 @@ class MainActivity : Activity() {
         super.onResume()
         instance = this
         resumed = true
-        Chat.listener = { refreshHome() }
+        Chat.listener = { refreshHome(); refreshLiveBtn() }
         refreshHome()
         refreshSettings()
         refreshMemory()
@@ -389,6 +390,13 @@ class MainActivity : Activity() {
                 false
             }
         }
+        liveBtn = tv("LIVE", 12f, Color.parseColor("#04121C"), true)
+        liveBtn.gravity = Gravity.CENTER
+        liveBtn.background = shape(Color.parseColor("#FBBF24"), 24)
+        liveBtn.setOnClickListener { toggleLive() }
+        val lp2 = lp(dp(52), dp(48))
+        lp2.rightMargin = dp(8)
+        row.addView(liveBtn, lp2)
         val mic = tv("🎤", 20f, Color.parseColor("#04121C"), true)
         mic.gravity = Gravity.CENTER
         mic.background = shape(PINK, 24)
@@ -424,6 +432,28 @@ class MainActivity : Activity() {
         } else {
             NoorService.talkNow()
         }
+    }
+
+    private fun toggleLive() {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            askPermissions()
+            return
+        }
+        saveSettings()
+        if (!NoorService.isRunning) {
+            try {
+                startForegroundService(Intent(this, NoorService::class.java))
+            } catch (e: Exception) {
+            }
+            input.postDelayed({ NoorService.toggleLive() }, 1200)
+        } else {
+            NoorService.toggleLive()
+        }
+        input.postDelayed({ refreshLiveBtn() }, 1500)
+    }
+
+    private fun refreshLiveBtn() {
+        if (::liveBtn.isInitialized) liveBtn.text = if (NoorService.liveActive) "STOP" else "LIVE"
     }
 
     private fun doSend() {

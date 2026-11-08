@@ -3,6 +3,10 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+dependencies {
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+}
+
 android {
     namespace = "com.noor.assistant"
     compileSdk = 34
@@ -11,8 +15,8 @@ android {
         applicationId = "com.noor.assistant"
         minSdk = 26
         targetSdk = 34
-        versionCode = 9
-        versionName = "9.0"
+        versionCode = 10
+        versionName = "10.0"
     }
 
     buildTypes {

@@ -46,6 +46,14 @@ class NoorService : Service() {
 
         fun instanceReady(): Boolean = instance != null
 
+        @Volatile
+        var liveActive = false
+
+        fun toggleLive() {
+            val s = instance ?: return
+            s.main.post { if (liveActive) s.stopLive() else s.startLive() }
+        }
+
         /** Mic button: bina "Hey Noor" ke ab bolo. */
         fun talkNow() {
             val s = instance ?: return
@@ -70,6 +78,93 @@ class NoorService : Service() {
     }
 
     private var pill: OverlayPill? = null
+    private var live: LiveSession? = null
+    private var liveOn = false
+
+    private fun startLive() {
+        if (liveOn) return
+        liveOn = true
+        liveActive = true
+        stopSpeakingNow()
+        busy = false
+        try {
+            recognizer?.cancel()
+        } catch (e: Exception) {
+        }
+        val base = prefs().getString("url", MainActivity.DEFAULT_URL)!!.trim().trimEnd('/')
+        val token = prefs().getString("token", "")!!
+        Chat.add("noor", "Live shuru ho rahi hai... thodi der mein bolein.")
+        setState("thinking")
+        val ls = LiveSession(
+            base, token, memories().joinToString("; "),
+            { st -> main.post { if (liveOn) setState(st) } },
+            { who, t -> main.post { Chat.add(who, t) } },
+            { name, args, cb -> main.post { liveTool(name, args, cb) } },
+            { msg -> main.post { endLive(msg) } }
+        )
+        live = ls
+        ls.start()
+    }
+
+    private fun stopLive() {
+        live?.end("Live band kar di.")
+    }
+
+    private fun endLive(msg: String) {
+        liveOn = false
+        liveActive = false
+        live = null
+        Chat.add("noor", msg)
+        setState("listening")
+        listen(500)
+    }
+
+    /** Live ke dauran Noor ke kaam (do_action). */
+    private fun liveTool(name: String, args: JSONObject, cb: (String) -> Unit) {
+        val intent = args.optString("intent")
+        val slots = try {
+            JSONObject(args.optString("args_json", "{}").ifBlank { "{}" })
+        } catch (e: Exception) {
+            JSONObject()
+        }
+        try {
+            when (intent) {
+                "screen_look" -> main.postDelayed({ cb(NoorAccess.readScreen().ifBlank { "Screen padh nahi saki (Accessibility ON karein)." }) }, 1200)
+                "reminder" -> cb("Theek hai, " + addReminder(slots) + " par yaad dilaungi.")
+                "image" -> {
+                    makeImage(slots.optString("prompt"))
+                    cb("Tasveer ban rahi hai, Gallery mein aa jayegi.")
+                }
+                "copy" -> {
+                    val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("Noor", slots.optString("text")))
+                    cb("Copy ho gaya.")
+                }
+                "remember" -> {
+                    val t = slots.optString("text")
+                    if (t.isNotBlank()) {
+                        val all = (memories() + t.replace("\n", " ")).takeLast(20)
+                        prefs().edit().putString("memories", all.joinToString("\n")).apply()
+                    }
+                    cb("Yaad rakh liya.")
+                }
+                "camera" -> {
+                    startActivity(
+                        Intent(this, MainActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                            .putExtra(MainActivity.EXTRA_VISION, if (slots.optBoolean("on", true)) "on" else "off")
+                    )
+                    cb("Camera tab khol diya.")
+                }
+                else -> {
+                    val fail = Actions.execute(this, intent, slots)
+                    cb(fail ?: "ho gaya")
+                }
+            }
+        } catch (e: Exception) {
+            cb("Ye kaam nahi ho saka.")
+        }
+    }
     private var nextProactive = 0L
     private var proactiveCount = 0
 
@@ -85,7 +180,7 @@ class NoorService : Service() {
                 val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
                 val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
                 val today = SimpleDateFormat("yyyyMMdd", Locale.ENGLISH).format(Date())
-                if (prefs().getBoolean("briefing", true) && hour in 8..11 && pm.isInteractive && !speaking && !busy &&
+                if (prefs().getBoolean("briefing", true) && hour in 8..11 && pm.isInteractive && !speaking && !busy && !liveOn &&
                     prefs().getString("lastBriefing", "") != today
                 ) {
                     prefs().edit().putString("lastBriefing", today).apply()
@@ -95,7 +190,7 @@ class NoorService : Service() {
                     return
                 }
                 val ok = prefs().getBoolean("proactive", true) && hour in 9..22 && pm.isInteractive &&
-                    !speaking && !busy && System.currentTimeMillis() >= nextProactive
+                    !speaking && !busy && !liveOn && System.currentTimeMillis() >= nextProactive
                 if (ok) {
                     scheduleProactive()
                     proactiveCount++
@@ -167,7 +262,7 @@ class NoorService : Service() {
                     }
                 }
                 val r = activeReminder
-                if (r != null && !speaking && !busy && now >= nextRemind) {
+                if (r != null && !speaking && !busy && !liveOn && now >= nextRemind) {
                     if (reminderRepeats >= 15) {
                         activeReminder = null
                     } else {
@@ -276,6 +371,11 @@ class NoorService : Service() {
         running = false
         isRunning = false
         instance = null
+        try {
+            live?.end("")
+        } catch (e: Exception) {
+        }
+        liveActive = false
         pill?.hide()
         pill = null
         Chat.set("off", "")
@@ -340,7 +440,7 @@ class NoorService : Service() {
     }
 
     private fun startRecognizer() {
-        if (!running || speaking || busy) return
+        if (!running || speaking || busy || liveOn) return
         if (prefs().getBoolean("ptt", false) && System.currentTimeMillis() > activeUntil) {
             setState("idle")
             note("Mic dabakar bolein.")
