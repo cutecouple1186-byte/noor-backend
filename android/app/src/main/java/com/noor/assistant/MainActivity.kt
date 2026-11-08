@@ -93,6 +93,8 @@ class MainActivity : Activity() {
     private lateinit var orb: OrbView
     private lateinit var statePill: TextView
     private lateinit var greeting: TextView
+    private lateinit var titleTv: TextView
+    private lateinit var faceView: android.widget.ImageView
     private lateinit var detailTv: TextView
     private lateinit var moodTv: TextView
     private lateinit var logBox: LinearLayout
@@ -162,6 +164,7 @@ class MainActivity : Activity() {
 
     // ------------------------------------------------------------------ lifecycle
     override fun onCreate(savedInstanceState: Bundle?) {
+        Persona.load(this)
         super.onCreate(savedInstanceState)
         window.statusBarColor = BG
         window.navigationBarColor = BG
@@ -289,9 +292,13 @@ class MainActivity : Activity() {
         header.orientation = LinearLayout.HORIZONTAL
         header.gravity = Gravity.CENTER_VERTICAL
         header.setPadding(dp(16), dp(14), dp(16), dp(4))
-        val title = tv("NOOR", 22f, CYAN, true)
-        title.letterSpacing = 0.25f
-        header.addView(title, lp(0, WRAP, 1f))
+        titleTv = tv("NOOR", 22f, CYAN, true)
+        titleTv.setOnClickListener {
+            Persona.set(this, if (Persona.isRox) "noor" else "rox")
+            refreshHome()
+        }
+        titleTv.letterSpacing = 0.25f
+        header.addView(titleTv, lp(0, WRAP, 1f))
         statePill = tv("OFF", 11f, TEXT, true)
         statePill.setPadding(dp(12), dp(5), dp(12), dp(5))
         header.addView(statePill, lp(WRAP, WRAP))
@@ -325,6 +332,11 @@ class MainActivity : Activity() {
         fp.gravity = Gravity.CENTER
         stage.addView(face, fp)
         orb.avatar = face
+        faceView = face
+        face.setOnClickListener {
+            Persona.set(this, if (Persona.isRox) "noor" else "rox")
+            refreshHome()
+        }
         content.addView(stage, lp(MATCH, dp(280)))
 
         val chips = LinearLayout(this)
@@ -339,6 +351,10 @@ class MainActivity : Activity() {
         chip("📖 Study", "Mujhe padhai mein madad chahiye, mujhse sawal poochho")
         chip("💬 Vent", "Mera dil halka karna hai, meri baat suno")
         chip("☁ Mausam", "Aaj ka mausam batao")
+        val photo = pill("🖼 Photo") { pickPhoto() }
+        val pp = lp(0, WRAP, 1f)
+        pp.setMargins(dp(3), 0, dp(3), 0)
+        chips.addView(photo, pp)
         content.addView(chips, lp(MATCH, WRAP))
 
         val cards = LinearLayout(this)
@@ -457,6 +473,54 @@ class MainActivity : Activity() {
         if (::liveBtn.isInitialized) liveBtn.text = if (NoorService.liveActive) "STOP" else "LIVE"
     }
 
+    private fun pickPhoto() {
+        val i = Intent(Intent.ACTION_GET_CONTENT).setType("image/*")
+        try {
+            startActivityForResult(Intent.createChooser(i, "Tasveer chunein"), 77)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Gallery nahi khuli", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        val uri = data?.data
+        if (requestCode != 77 || resultCode != RESULT_OK || uri == null) return
+        Thread {
+            try {
+                val opts = android.graphics.BitmapFactory.Options()
+                opts.inJustDecodeBounds = true
+                contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, opts) }
+                var sample = 1
+                while (opts.outWidth / sample > 1600) sample *= 2
+                val o2 = android.graphics.BitmapFactory.Options()
+                o2.inSampleSize = sample
+                val bmp = contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, o2) }
+                    ?: return@Thread
+                val k = 768f / maxOf(bmp.width, bmp.height)
+                val small = if (k < 1f) android.graphics.Bitmap.createScaledBitmap(bmp, (bmp.width * k).toInt(), (bmp.height * k).toInt(), true) else bmp
+                val bo = java.io.ByteArrayOutputStream()
+                small.compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, bo)
+                val b64 = "data:image/jpeg;base64," + android.util.Base64.encodeToString(bo.toByteArray(), android.util.Base64.NO_WRAP)
+                runOnUiThread {
+                    val q = input.text.toString().trim().ifEmpty { "Is tasveer mein kya hai? Batao." }
+                    input.setText("")
+                    if (!NoorService.isRunning) {
+                        try {
+                            startForegroundService(Intent(this, NoorService::class.java))
+                        } catch (e: Exception) {
+                        }
+                        input.postDelayed({ NoorService.submitImage(q, b64) }, 1200)
+                    } else {
+                        NoorService.submitImage(q, b64)
+                    }
+                }
+            } catch (e: Exception) {
+                runOnUiThread { Toast.makeText(this, "Tasveer nahi khuli", Toast.LENGTH_LONG).show() }
+            }
+        }.start()
+    }
+
     private fun doSend() {
         val t = input.text.toString().trim()
         if (t.isEmpty()) return
@@ -517,9 +581,12 @@ class MainActivity : Activity() {
         }
         val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
         val hello = if (h < 12) "Subah bakhair" else if (h < 17) "Assalam o Alaikum" else "Shaam bakhair"
-        greeting.text = "$hello, Rizwan"
+        greeting.text = "$hello, ${Persona.you}"
+        titleTv.text = Persona.name + " ⇄"
+        titleTv.setTextColor(if (Persona.isRox) Color.parseColor("#F97316") else CYAN)
+        faceView.setImageResource(if (Persona.isRox) R.drawable.rox_avatar else R.drawable.noor_avatar)
         detailTv.text = if (Chat.detail.isNotEmpty()) Chat.detail
-        else if (NoorService.isRunning) "Noor sun rahi hai. \"Hey Noor\" bolein ya likhein."
+        else if (NoorService.isRunning) (if (Persona.isRox) "Rox sun raha hai. \"Hey Rox\" ya \"Hey Noor\" bolein, ya likhein." else "Noor sun rahi hai. \"Hey Noor\" ya \"Hey Rox\" bolein, ya likhein.")
         else "Noor band hai. Neeche mic dabakar shuru karein."
 
         micBtn.text = if (NoorService.isRunning) "■" else "🎙"

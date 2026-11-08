@@ -71,7 +71,7 @@ class LiveSession(
     fun start() {
         Thread {
             try {
-                val c = URL("$base/live-config").openConnection() as HttpURLConnection
+                val c = URL("$base/live-config?persona=${Persona.id}").openConnection() as HttpURLConnection
                 c.setRequestProperty("x-app-token", token)
                 c.connectTimeout = 8000
                 c.readTimeout = 10000

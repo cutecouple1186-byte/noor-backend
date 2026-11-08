@@ -106,10 +106,10 @@ class OverlayPill(private val ctx: Context) {
     fun update(state: String) {
         val r = root ?: return
         val (text, color) = when (state) {
-            "listening" -> Pair("NOOR  LISTENING", "#22D3EE")
-            "thinking" -> Pair("NOOR  THINKING", "#FBBF24")
-            "speaking" -> Pair("NOOR  SPEAKING", "#E879F9")
-            else -> Pair("NOOR  READY", "#38BDF8")
+            "listening" -> Pair(Persona.name + "  LISTENING", "#22D3EE")
+            "thinking" -> Pair(Persona.name + "  THINKING", "#FBBF24")
+            "speaking" -> Pair(Persona.name + "  SPEAKING", "#E879F9")
+            else -> Pair(Persona.name + "  READY", "#38BDF8")
         }
         label?.text = text
         bars?.color = Color.parseColor(color)

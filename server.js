@@ -21,6 +21,68 @@ const { LLM_API_KEY, APP_TOKEN, TAVILY_API_KEY } = process.env;
 const BASE = (process.env.LLM_BASE_URL || "https://api.deepseek.com").replace(/\/$/, "");
 const MODEL = process.env.LLM_MODEL || "deepseek-chat";
 
+// ---- Yaadein internet par (Upstash Redis, free). App reset ho tab bhi yaad rahe ----
+const KV_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+const KV_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+async function kv(cmd) {
+  if (!KV_URL || !KV_TOKEN) return null;
+  try {
+    const r = await fetch(KV_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${KV_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify(cmd),
+      signal: AbortSignal.timeout(4000),
+    });
+    const j = await r.json();
+    return j.result ?? null;
+  } catch (e) {
+    console.error("kv error", String(e.message || e).slice(0, 120));
+    return null;
+  }
+}
+async function kvJson(key, dflt) {
+  const v = await kv(["GET", key]);
+  if (!v) return dflt;
+  try {
+    return JSON.parse(v);
+  } catch (e) {
+    return dflt;
+  }
+}
+const kvSave = (key, val) => kv(["SET", key, JSON.stringify(val)]);
+async function addFact(text) {
+  const t = String(text || "").trim().slice(0, 200);
+  if (!t) return;
+  const facts = await kvJson("noor:facts", []);
+  if (!facts.includes(t)) facts.push(t);
+  await kvSave("noor:facts", facts.slice(-80));
+}
+async function addLog(persona, u, r) {
+  const log = await kvJson("noor:log", []);
+  log.push({ p: persona, u: String(u).slice(0, 140), r: String(r).slice(0, 180), t: new Date().toISOString().slice(0, 16) });
+  await kvSave("noor:log", log.slice(-40));
+}
+
+const PERSONAS = {
+  noor: { name: "Noor", you: "Rizwan", other: "Rox", voice: process.env.TTS_VOICE || "Leda", style: "warm, friendly young woman chatting with a close friend, relaxed pace, natural and expressive" },
+  rox: { name: "Rox", you: "Sir", other: "Noor", voice: process.env.TTS_VOICE_ROX || "Orus", style: "calm, confident young man, deep steady voice, respectful but friendly, like a loyal big brother" },
+};
+const personaOf = (p) => (p === "rox" ? "rox" : "noor");
+function personaText(p, you) {
+  if (p === "rox")
+    return `You are ROX, a calm, confident, witty MALE personal voice assistant (a loyal big-brother Jarvis). Always call the user "Sir". Use masculine grammar for yourself ("kar raha hoon"). Your female counterpart is NOOR; you and Noor are two different minds with different styles, but you share everything you both know about Rizwan and you know what each other did. If he asks about Noor, speak of her kindly.`;
+  return `You are NOOR, a warm, smart, FEMALE personal voice assistant. Always call the user "Rizwan". Use feminine grammar for yourself ("kar rahi hoon"). Your male counterpart is ROX (calls him "Sir"); you and Rox are two different minds with different styles, but you share everything you both know about Rizwan and you know what each other did. If he asks about Rox, speak of him kindly.`;
+}
+async function sharedContext(persona) {
+  const facts = await kvJson("noor:facts", []);
+  const log = await kvJson("noor:log", []);
+  let t = "";
+  if (facts.length) t += `\nShared memory about Rizwan (known to both Noor and Rox):\n- ${facts.slice(-40).join("\n- ")}`;
+  if (log.length)
+    t += `\nRecent talks by both assistants (newest last):\n` + log.slice(-10).map((x) => `[${x.t}] ${x.p === "rox" ? "Rox" : "Noor"}: user said "${x.u}" / answered "${x.r}"`).join("\n");
+  return t;
+}
+
 const SYSTEM = `You are NOOR, a warm, smart, female personal voice assistant.
 Reply in the SAME language and script the user used: Urdu script, Roman Urdu, or English.
 Use feminine grammar when speaking about yourself (e.g. "kar rahi hoon").
@@ -63,6 +125,7 @@ Games: you can open a game and tap or swipe the screen only when told, step by s
 Calls and messages: when the user asks you to call or message someone, use "call" or "send_message" right away; the phone app will do it, do not ask for confirmation unless the name or text is missing.
 Never claim an action is finished; the phone app performs it.
 Only use "remember" if the user clearly asks you to remember something.`;
+const SYSTEM_BASE = SYSTEM.replace(/^You are NOOR[^\n]*\n/, "").replace(/^Use feminine grammar[^\n]*\n/m, "");
 
 // Agar pehla model masroof (503) ya band (404) ho to agla model try hota hai
 const FALLBACKS = (process.env.LLM_FALLBACK_MODELS || "gemini-flash-latest,gemini-flash-lite-latest,gemini-2.5-flash")
@@ -302,13 +365,16 @@ app.post("/chat", async (req, res) => {
     return res.status(401).json({ reply: "Unauthorized", intent: "none", slots: {} });
   }
   try {
-    const { message = "", history = [], memories = [], context = "", image = "" } = req.body;
+    const { message = "", history = [], memories = [], context = "", image = "", persona: pIn = "noor" } = req.body;
+    const persona = personaOf(pIn);
     const img =
       typeof image === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(image) && image.length < 2500000
         ? image
         : "";
     const sys =
-      SYSTEM +
+      personaText(persona) + "\n" +
+      SYSTEM_BASE +
+      (await sharedContext(persona)) +
       (context ? `\nDevice context: ${String(context).slice(0, 2000)}` : "") +
       (memories.length ? `\nUser-approved memories:\n- ${memories.slice(-20).join("\n- ")}` : "");
     const msgs = [
@@ -344,6 +410,8 @@ app.post("/chat", async (req, res) => {
         { role: "system", content: `${extra}\nNow answer the user briefly using this. Use intent "none". Return JSON.` },
       ]);
     }
+    if (out.intent === "remember" && out.slots && out.slots.text) await addFact(out.slots.text);
+    if (!String(message).startsWith("(SCREEN")) await addLog(persona, message, out.reply ?? "");
     res.json({ reply: out.reply ?? "", intent: out.intent ?? "none", slots: out.slots ?? {} });
   } catch (e) {
     console.error(e);
@@ -378,7 +446,7 @@ function pcmToWav(pcm, rate) {
 // Tasveer banana: pehle Gemini image model, na chale to Pollinations (free).
 // Live (real-time) awaaz ke liye settings. Key sirf password wale phone ko milti hai.
 const LIVE_SYSTEM = `You are NOOR, a warm, smart, female personal voice assistant talking live with Rizwan from Pakistan, like a close friend on a call.
-Speak the language he speaks: Roman Urdu / Hindi mixed with simple English. Use feminine grammar for yourself ("kar rahi hoon"). Call him "Rizwan".
+Speak the language he speaks: Roman Urdu / Hindi mixed with simple English.
 Keep every turn short (1-3 sentences), natural and expressive, never read lists aloud. You may add a small thought of your own and sometimes ask one short question back.
 You can do things on his phone by calling the function do_action(intent, args_json). args_json is a JSON string. Intents:
 open_app {"name"}; set_alarm {"hour","minute","label"}; set_timer {"seconds"}; call {"name","number"}; send_message {"app":"whatsapp"|"sms","name","number","text"}; play_youtube {"query"}; maps {"place","navigate"}; torch {"on"}; volume {"level","direction"}; open_settings {"target":"wifi|bluetooth|sound|battery|location|display"}; add_event {"title","hour","minute","day_offset"}; reminder {"text","minutes","hour","minute","day_offset"} (you will remind him by voice later); screen {"action":"back|home|recents|scroll_down|scroll_up|tap_text|type|enter|tap","text","x","y"}; screen_look {} (returns the labels now on screen so you can choose the next tap); image {"prompt": detailed English prompt}; copy {"text"}; camera {"on"}; remember {"text"}.
@@ -386,10 +454,26 @@ For multi-step jobs inside an app (search, subscribe, follow, like) do one step 
 Background: the microphone may also pick up music, TV, videos or other people. Answer ONLY when Rizwan is clearly talking to you. If you hear songs, TV, a video, several people at once, or speech that is not for you, stay silent and do not answer; never react to lyrics or other people's words. If you are unsure whether it was him, wait or ask once: "Rizwan, aap ne mujhse kuch kaha?"
 Tell him briefly what you are doing, then do it. If you are unsure about current facts, say so honestly. You cannot play games for him and you cannot change his YouTube channel directly.`;
 
+app.get("/memory", async (req, res) => {
+  if (APP_TOKEN && req.get("x-app-token") !== APP_TOKEN) return res.status(401).json({});
+  res.json({ cloud: !!(KV_URL && KV_TOKEN), facts: await kvJson("noor:facts", []), log: (await kvJson("noor:log", [])).slice(-10) });
+});
+app.post("/memory", async (req, res) => {
+  if (APP_TOKEN && req.get("x-app-token") !== APP_TOKEN) return res.status(401).json({});
+  const f = req.body && req.body.fact;
+  if (Array.isArray(f)) for (const x of f.slice(0, 40)) await addFact(x);
+  else await addFact(f);
+  res.json({ ok: true, cloud: !!(KV_URL && KV_TOKEN) });
+});
+
 app.get("/live-config", (req, res) => {
   if (APP_TOKEN && req.get("x-app-token") !== APP_TOKEN) return res.status(401).json({});
   const models = (process.env.LIVE_MODELS || "gemini-3.8-live,gemini-2.5-flash-native-audio-preview-12-2025,gemini-live-2.5-flash-preview").split(",").map((x) => x.trim());
-  res.json({ key: LLM_API_KEY, models, voice: process.env.TTS_VOICE || "Leda", system: LIVE_SYSTEM });
+  const persona = personaOf(req.query.persona);
+  sharedContext(persona).then((ctx) => {
+    const sys = personaText(persona) + "\n" + LIVE_SYSTEM.replace(/^You are NOOR[^\n]*\n/, "") + ctx;
+    res.json({ key: LLM_API_KEY, models, voice: PERSONAS[persona].voice, system: sys });
+  });
 });
 
 app.post("/image", async (req, res) => {
@@ -437,6 +521,7 @@ app.post("/tts", async (req, res) => {
   if (!BASE.includes("generativelanguage.googleapis.com")) return res.status(501).end();
   const text = String((req.body && req.body.text) || "").slice(0, 500).trim();
   if (!text) return res.status(400).end();
+  const P = PERSONAS[personaOf(req.body && req.body.persona)];
   for (const m of TTS_MODELS) {
     try {
       // Gemini "Interactions" API (ai.google.dev/gemini-api/docs/speech-generation)
@@ -448,11 +533,11 @@ app.post("/tts", async (req, res) => {
           input: [
             {
               type: "user_input",
-              content: [{ type: "text", text, annotations: [{ type: "speech_metadata", style: TTS_STYLE }] }],
+              content: [{ type: "text", text, annotations: [{ type: "speech_metadata", style: P.style }] }],
             },
           ],
           response_format: { type: "audio" },
-          generation_config: { speech_config: [{ voice: TTS_VOICE }] },
+          generation_config: { speech_config: [{ voice: P.voice }] },
         }),
         signal: AbortSignal.timeout(9000),
       });

@@ -30,7 +30,8 @@ object Net {
         history: List<Pair<String, String>>,
         memories: List<String>,
         context: String,
-        image: String = ""
+        image: String = "",
+        persona: String = Persona.id
     ): JSONObject {
         val body = JSONObject()
         body.put("message", message)
@@ -43,6 +44,7 @@ object Net {
         for (x in memories.takeLast(20)) m.put(x)
         body.put("memories", m)
         body.put("context", context)
+        body.put("persona", persona)
         if (image.isNotBlank()) body.put("image", image)
 
         var last = fail("Maaf kijiye, abhi mujhe jawab nahi mil raha.")
@@ -74,7 +76,7 @@ object Net {
             c.connectTimeout = 4000
             c.readTimeout = 7000
             c.outputStream.use {
-                it.write(JSONObject().put("text", text).toString().toByteArray(Charsets.UTF_8))
+                it.write(JSONObject().put("text", text).put("persona", Persona.id).toString().toByteArray(Charsets.UTF_8))
             }
             if (c.responseCode != 200) return null
             val f = File(dir, "noor_tts.wav")
@@ -108,6 +110,30 @@ object Net {
             if (c.responseCode !in 200..299) return null
             val j = JSONObject(c.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
             android.util.Base64.decode(j.optString("image"), android.util.Base64.DEFAULT)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** Yaadein internet par ek hain: phone ki yaadein bhejo, saari wapas lo. Na ho paye to null. */
+    fun memorySync(base: String, token: String, local: List<String>): List<String>? {
+        return try {
+            val c = open("$base/memory", token)
+            c.connectTimeout = 8000
+            c.readTimeout = 12000
+            val arr = JSONArray()
+            for (x in local.takeLast(40)) arr.put(x)
+            c.outputStream.use { it.write(JSONObject().put("fact", arr).toString().toByteArray(Charsets.UTF_8)) }
+            if (c.responseCode != 200) return null
+            val g = URL("$base/memory").openConnection() as HttpURLConnection
+            g.setRequestProperty("x-app-token", token)
+            g.connectTimeout = 8000
+            g.readTimeout = 12000
+            if (g.responseCode != 200) return null
+            val j = JSONObject(g.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
+            if (!j.optBoolean("cloud", false)) return null
+            val f = j.optJSONArray("facts") ?: return null
+            (0 until f.length()).map { f.getString(it) }
         } catch (e: Exception) {
             null
         }

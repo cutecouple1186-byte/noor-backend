@@ -46,6 +46,22 @@ class NoorService : Service() {
 
         fun instanceReady(): Boolean = instance != null
 
+        /** Gallery ki tasveer + sawaal bhejo (img = data:image/jpeg;base64,...). */
+        fun submitImage(text: String, img: String) {
+            val s = instance ?: return
+            s.main.post {
+                s.activeUntil = System.currentTimeMillis() + 60000
+                s.stopSpeakingNow()
+                try {
+                    s.recognizer?.cancel()
+                } catch (e: Exception) {
+                }
+                s.busy = false
+                Chat.add("me", "🖼 " + text)
+                s.ask(text, img)
+            }
+        }
+
         @Volatile
         var liveActive = false
 
@@ -80,6 +96,18 @@ class NoorService : Service() {
     private var pill: OverlayPill? = null
     private var live: LiveSession? = null
     private var liveOn = false
+
+    /** Yaadein internet se milao (app reset ke baad bhi wapas aa jati hain). */
+    private fun syncMemories() {
+        val base = prefs().getString("url", MainActivity.DEFAULT_URL)!!.trim().trimEnd('/')
+        val token = prefs().getString("token", "")!!
+        Thread {
+            val local = memories()
+            val all = Net.memorySync(base, token, local) ?: return@Thread
+            val merged = (all + local).distinct().takeLast(40)
+            prefs().edit().putString("memories", merged.joinToString("\n")).apply()
+        }.start()
+    }
 
     private fun startLive() {
         if (liveOn) return
@@ -269,7 +297,7 @@ class NoorService : Service() {
                         reminderRepeats++
                         nextRemind = now + 60000
                         stopSpeakingNow()
-                        say("Rizwan, yaad dilana tha: $r. Bataiye, ho gaya?")
+                        say("${Persona.you}, yaad dilana tha: $r. Bataiye, ho gaya?")
                     }
                 }
             } catch (e: Exception) {
@@ -310,6 +338,7 @@ class NoorService : Service() {
     private var wake: PowerManager.WakeLock? = null
 
     private val wakeRe = Regex("(hey|hay|hi|he|ae|ai|है|हे|हेय|ऐ|ہے|اے|ہی)?\\s*(noor|nur|nour|नूर|نور)")
+    private val roxRe = Regex("(hey|hay|hi|he|ae|ai|है|हे|हेय|ऐ|ہے|اے|ہی)?\\s*(rox|roks|rocks|rocx|rokh|रॉक्स|रोक्स|रॉक्|راکس|روکس|راکز)")
     private val stopRe = Regex("\\bstop\\b|band karo|sunna band|bas karo|chup ho|chup kar|सुनना बंद|बंद करो|बस करो|चुप|بند کرو|سننا بند|بس کرو|چپ")
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -330,6 +359,8 @@ class NoorService : Service() {
             running = true
             isRunning = true
             instance = this
+            Persona.load(this)
+            syncMemories()
             pill = OverlayPill(this)
             pill?.show()
             setState("listening")
@@ -534,9 +565,22 @@ class NoorService : Service() {
         val lower = raw.lowercase().trim()
         var text = raw.trim()
         val now = System.currentTimeMillis()
-        if (wakeRe.containsMatchIn(lower)) {
+        val mRox = roxRe.find(lower)
+        val mNoor = wakeRe.find(lower)
+        if (mRox != null || mNoor != null) {
             activeUntil = now + 60000
-            text = lower.replace(wakeRe, "").trim()
+            val wantRox = mRox != null && (mNoor == null || mRox.range.first <= mNoor.range.first)
+            val changed = wantRox != Persona.isRox
+            if (changed) {
+                Persona.set(this, if (wantRox) "rox" else "noor")
+                pill?.update("listening")
+                Chat.set("listening")
+            }
+            text = lower.replace(roxRe, "").replace(wakeRe, "").trim()
+            if (changed && text.isEmpty()) {
+                say(if (wantRox) "Ji Sir, Rox hazir hai. Hukm kijiye." else "Ji Rizwan, main Noor hoon. Boliye.")
+                return
+            }
         }
         if (now > activeUntil) {
             listen(100)
@@ -544,11 +588,11 @@ class NoorService : Service() {
         }
         if (stopRe.containsMatchIn(lower)) {
             activeUntil = 0
-            say("Theek hai, jab chahein Hey Noor bolein.")
+            say("Theek hai, jab chahein Hey ${Persona.title} bolein.")
             return
         }
         if (text.isEmpty()) {
-            say("Ji, boliye.")
+            say(if (Persona.isRox) "Ji Sir, boliye." else "Ji, boliye.")
             return
         }
         Chat.add("me", text)
@@ -652,7 +696,7 @@ class NoorService : Service() {
         }, delay)
     }
 
-    private fun ask(textIn: String) {
+    private fun ask(textIn: String, pic: String = "") {
         var text = textIn
         if (!text.startsWith("(SCREEN")) lookDepth = 0
         val rem = activeReminder
@@ -671,7 +715,9 @@ class NoorService : Service() {
         Thread {
             val res = try {
                 var img = ""
-            if (MainActivity.resumed && !text.startsWith("(SCREEN")) {
+            if (pic.isNotBlank()) {
+                img = pic
+            } else if (MainActivity.resumed && !text.startsWith("(SCREEN")) {
                 val latch = java.util.concurrent.CountDownLatch(1)
                 MainActivity.requestFrame {
                     img = it
@@ -832,7 +878,7 @@ class NoorService : Service() {
         }
         val arabic = text.any { it in '؀'..'ۿ' }
         t.setLanguage(if (arabic) Locale("ur", "PK") else Locale("hi", "IN"))
-        t.setPitch(1.1f)
+        t.setPitch(if (Persona.isRox) 0.7f else 1.1f)
         if (t.speak(text, TextToSpeech.QUEUE_FLUSH, null, "noor") != TextToSpeech.SUCCESS) doneSpeaking()
     }
 
