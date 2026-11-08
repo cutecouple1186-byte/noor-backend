@@ -96,7 +96,8 @@ class NoorService : Service() {
         Chat.add("noor", "Live shuru ho rahi hai... thodi der mein bolein.")
         setState("thinking")
         val ls = LiveSession(
-            base, token, memories().joinToString("; "), prefs().getInt("gate", 900),
+            base, token, memories().joinToString("; "),
+            intArrayOf(0, 700, 1300, 2200)[prefs().getInt("gate", 1).coerceIn(0, 3)], prefs().getInt("gate", 900),
             { st -> main.post { if (liveOn) setState(st) } },
             { who, t -> main.post { Chat.add(who, t) } },
             { name, args, cb -> main.post { liveTool(name, args, cb) } },

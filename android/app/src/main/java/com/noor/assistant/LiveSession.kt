@@ -30,6 +30,7 @@ class LiveSession(
     private val base: String,
     private val token: String,
     private val memories: String,
+    private val gate: Int,
     private val gateMin: Int,
     private val onState: (String) -> Unit,
     private val onText: (String, String) -> Unit,
@@ -62,6 +63,7 @@ class LiveSession(
     private var userBuf = StringBuilder()
     private var modelBuf = StringBuilder()
     private var lastAudioAt = 0L
+    private var holdUntil = 0L
 
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
@@ -314,7 +316,7 @@ class LiveSession(
                         "realtimeInput",
                         JSONObject().put(
                             "audio",
-                            JSONObject().put("data", Base64.encodeToString(buf, 0, n, Base64.NO_WRAP))
+                            JSONObject().put("data", Base64.encodeToString(data, 0, n, Base64.NO_WRAP))
                                 .put("mimeType", "audio/pcm;rate=16000")
                         )
                     )
