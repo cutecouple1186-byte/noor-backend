@@ -772,6 +772,24 @@ class MainActivity : Activity() {
                 .setItems(ls.toTypedArray()) { _, i -> Secrets.remove(this, ls[i]); Toast.makeText(this, "Hata diya", Toast.LENGTH_SHORT).show() }
                 .show()
         })
+        col.addView(TextView(this).apply {
+            text = "Shehar (namaz ke waqt ke liye)"
+            setTextColor(Color.parseColor("#E6F1FF"))
+            textSize = 14f
+            setPadding(0, dp(14), 0, dp(4))
+        })
+        val cityEt = EditText(this).apply { setText(prefs().getString("city", "Karachi")); setTextColor(Color.WHITE); setSingleLine(true) }
+        col.addView(cityEt)
+        col.addView(button("Shehar save karo") {
+            prefs().edit().putString("city", cityEt.text.toString().trim().ifBlank { "Karachi" }).apply()
+            Toast.makeText(this, "Shehar save", Toast.LENGTH_SHORT).show()
+        })
+        col.addView(button("Notification parhne ki ijazat (Noor)") {
+            try { startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")) } catch (e: Exception) {}
+        })
+        col.addView(button("Focus/Do Not Disturb ijazat") {
+            try { startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)) } catch (e: Exception) {}
+        })
         col.addView(button("Save karo") {
             saveSettings()
             Toast.makeText(this, "Save ho gaya", Toast.LENGTH_SHORT).show()
@@ -813,6 +831,7 @@ class MainActivity : Activity() {
         list.add(Manifest.permission.CALL_PHONE)
         list.add(Manifest.permission.SEND_SMS)
         if (Build.VERSION.SDK_INT >= 33) list.add(Manifest.permission.POST_NOTIFICATIONS)
+        list.add(if (Build.VERSION.SDK_INT >= 33) "android.permission.READ_MEDIA_IMAGES" else Manifest.permission.READ_EXTERNAL_STORAGE)
         requestPermissions(list.toTypedArray(), 1)
     }
 

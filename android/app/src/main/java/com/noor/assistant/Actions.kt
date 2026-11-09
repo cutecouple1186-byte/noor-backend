@@ -154,6 +154,12 @@ object Actions {
         }
     }
 
+    fun torchBlink(ctx: Context) {
+        val h = android.os.Handler(android.os.Looper.getMainLooper())
+        for (i in 0 until 30) h.postDelayed({ torch(ctx, i % 2 == 0) }, i * 1000L)
+        h.postDelayed({ torch(ctx, false) }, 31000L)
+    }
+
     private fun volume(ctx: Context, level: Int, direction: String): Boolean {
         return try {
             val am = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -230,6 +236,11 @@ object Actions {
     /** Kaam karo. Agar na ho paye to bolne ke liye jawab lauta do, warna null. */
     fun execute(ctx: Context, intent: String, s: JSONObject): String? {
         when (intent) {
+            "notifications" -> return NoorNotif.summary()
+            "find_phone" -> return Jarvis.findPhone(ctx)
+            "focus" -> return Jarvis.focus(ctx, s.optBoolean("on", true))
+            "gallery" -> return Jarvis.gallery(ctx, s.optString("when", "latest"))
+            "good_night" -> return Jarvis.goodNight(ctx)
             "open_app" -> {
                 val name = s.optString("name")
                 if (name.isBlank()) return "Kaun si app kholni hai?"

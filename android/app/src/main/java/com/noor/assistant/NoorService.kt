@@ -49,6 +49,7 @@ class NoorService : Service() {
         /** Gallery ki tasveer + sawaal bhejo (img = data:image/jpeg;base64,...). */
         fun submitImage(text: String, img: String) {
             val s = instance ?: return
+            s.lastPic = img
             s.main.post {
                 s.activeUntil = System.currentTimeMillis() + 60000
                 s.stopSpeakingNow()
@@ -183,6 +184,14 @@ class NoorService : Service() {
             when (intent) {
                 "screen_look" -> main.postDelayed({ cb(NoorAccess.readScreen().ifBlank { "Screen padh nahi saki (Accessibility ON karein)." }) }, 1200)
                 "reminder" -> cb("Theek hai, " + addReminder(slots) + " par yaad dilaungi.")
+                "prayer_times" -> Jarvis.prayerText(this) { cb(it) }
+                "edit_image" -> {
+                    if (lastPic.isBlank()) cb("Pehle gallery se photo bhejni hogi (Photo button).")
+                    else {
+                        makeImage(slots.optString("prompt"), lastPic)
+                        cb("Photo edit ho rahi hai, Gallery mein aa jayegi.")
+                    }
+                }
                 "image" -> {
                     makeImage(slots.optString("prompt"))
                     cb("Tasveer ban rahi hai, Gallery mein aa jayegi.")
@@ -237,9 +246,21 @@ class NoorService : Service() {
                 ) {
                     prefs().edit().putString("lastBriefing", today).apply()
                     activeUntil = System.currentTimeMillis() + 60000
-                    ask("(BRIEFING) Rizwan ke liye aaj subah ki briefing do.")
+                    ask("(BRIEFING) " + Persona.you + " ke liye aaj subah ki briefing do. Shehar: " + Jarvis.city(this@NoorService) + ", mausam bhi batao.")
                     main.postDelayed(this, 60000)
                     return
+                }
+                if (!speaking && !busy && !liveOn) {
+                    Thread {
+                        val pr = try { Jarvis.duePrayer(this@NoorService) } catch (e: Exception) { null }
+                        val nd = if (pr == null) try { Jarvis.nudge(this@NoorService) } catch (e: Exception) { null } else null
+                        main.post {
+                            if (!speaking && !busy && !liveOn) {
+                                if (pr != null) say(Persona.you + ", " + pr + " ki namaz ka waqt ho gaya hai.")
+                                else if (nd != null) say(nd)
+                            }
+                        }
+                    }.start()
                 }
                 val ok = prefs().getBoolean("proactive", true) && hour in 9..22 && pm.isInteractive &&
                     !speaking && !busy && !liveOn && System.currentTimeMillis() >= nextProactive
@@ -654,11 +675,14 @@ class NoorService : Service() {
 
     private var appsCache: String? = null
 
-    private fun makeImage(prompt: String) {
+    @Volatile
+    var lastPic = ""
+
+    private fun makeImage(prompt: String, src: String = "") {
         val base = prefs().getString("url", MainActivity.DEFAULT_URL)!!.trim().trimEnd('/')
         val token = prefs().getString("token", "")!!
         Thread {
-            val bytes = Net.image(base, token, prompt)
+            val bytes = Net.image(base, token, prompt, src)
             main.post {
                 if (bytes == null || bytes.size < 1000) {
                     Chat.add("noor", "Tasveer nahi ban saki, thodi der baad dobara bolein.")
@@ -808,6 +832,14 @@ class NoorService : Service() {
                 say(if (reply.isNotBlank()) reply else "Theek hai, tasveer bana rahi hoon.")
                 makeImage(pr)
             }
+            "edit_image" -> {
+                if (lastPic.isBlank()) say("Pehle 🖼 Photo se gallery ki tasveer bhejein, phir bolein kya badalna hai.")
+                else {
+                    say(if (reply.isNotBlank()) reply else "Theek hai, photo edit kar rahi hoon.")
+                    makeImage(slots.optString("prompt").ifBlank { userText }, lastPic)
+                }
+            }
+            "prayer_times" -> Jarvis.prayerText(this) { say(it) }
             "screen_look" -> scheduleLook(slots.optString("goal"), 800)
             "reminder" -> {
                 val whenTxt = addReminder(slots)
