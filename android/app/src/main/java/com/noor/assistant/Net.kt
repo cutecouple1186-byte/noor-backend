@@ -138,4 +138,18 @@ object Net {
             null
         }
     }
+
+    /** Internet se abhi ka jawab (Google search ke saath Gemini). Khali = nahi mila. */
+    fun search(base: String, token: String, q: String): String {
+        return try {
+            val c = open("$base/search", token)
+            c.connectTimeout = 8000
+            c.readTimeout = 25000
+            c.outputStream.use { it.write(JSONObject().put("q", q).toString().toByteArray(Charsets.UTF_8)) }
+            if (c.responseCode != 200) return ""
+            JSONObject(c.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }).optString("text")
+        } catch (e: Exception) {
+            ""
+        }
+    }
 }

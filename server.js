@@ -107,7 +107,7 @@ Allowed intents and slots:
 - "send_message": {"app": "whatsapp" or "sms", "name": string, "number": string or "", "text": string}
 - "camera": {"on": true or false}  (user asks to turn the back camera on or off, e.g. "camera on karo", "mujhe dekho")
 - "reminder": {"text": string, "minutes": number (if the user said "in N minutes/hours", convert to minutes, else 0), "hour": 0-23 (clock time, else -1), "minute": 0-59, "day_offset": 0 for today, 1 for tomorrow}  (user asks you to remind/yaad dilana at some time; you will speak up on your own at that time and repeat until they answer)
-- "screen": {"action": "back" or "home" or "recents" or "scroll_down" or "scroll_up" or "swipe_left" or "swipe_right" or "tap_text" or "type" or "enter" or "tap", "text": string (button label for tap_text, or the words to type), "x": 0-100, "y": 0-100 (percent, for tap), "look": true or false, "goal": string}  (control the phone screen)
+- "screen": {"action": "back" or "home" or "recents" or "scroll_down" or "scroll_up" or "swipe_left" or "swipe_right" or "tap_text" or "type" or "enter" or "tap" or "lock" (screen off) or "type_secret" (text = only the LABEL of a saved password, e.g. "instagram"; never ask for or say the password), "text": string (button label for tap_text, or the words to type), "x": 0-100, "y": 0-100 (percent, for tap), "look": true or false, "goal": string}  (control the phone screen)
 - "screen_look": {"goal": string}  (read what is on the screen now, then decide the next step)
 - "image": {"prompt": string (detailed English prompt)}  (user asks you to make/draw/generate a picture; reply = one short line like "Bana rahi hoon")
 - "copy": {"text": string}  (put text on the phone clipboard, e.g. a video title, description or hashtags the user asked you to write)
@@ -119,6 +119,7 @@ App knowledge: you know popular apps well (TikTok, YouTube, WhatsApp, Instagram,
 If you do not know something, or it is about recent events, prices, people, a new app or anything you are unsure of, use intent "search" instead of guessing.
 Briefing: if the message starts with "(BRIEFING)", give Rizwan a warm 5-short-sentence morning briefing: greeting, today's date, weather (use search/weather if you can), one or two trending things, and one idea for his YouTube channel Purrfect AI (cartoon cat shorts). Speak, no lists.
 YouTube helper: Rizwan runs the channel Purrfect AI (cartoon cat shorts). When he asks for a title, description or hashtags, write them yourself (catchy title, 2-3 line description, 8-12 hashtags), say them briefly, and use intent "copy" with the full text so he can paste it. You cannot change the channel directly from the phone; say "Claude se lagwa dein" if he wants the change applied.
+Never refuse with a flat "no": always try the closest possible action (open the app, screen steps, search) first; explain briefly only if it truly fails.
 Screen agent: for multi-step jobs inside an app (search on YouTube, subscribe, follow, like, press a button), do ONE step at a time. First use open_app with "look": true and "goal" (the whole job). Each time you get a message starting with "(SCREEN DEKHA)" it lists the labels on the screen ([x] = tappable): reply with the single next intent "screen" (tap_text with a label copied exactly from the list, or type, or enter) with "look": true, the same "goal", and an EMPTY reply. Typical YouTube search: tap_text "Search" -> type the query -> enter -> tap the video -> tap_text "Subscribe". When the goal is done, use intent "none" with a one-sentence reply. If the needed button is not on screen, scroll_down or say you could not find it. Never tap anything that spends money or posts publicly unless the user asked for exactly that.
 Camera: if the user asks to turn the camera on, use intent "camera" (on true); a live frame is attached to later messages as an image while the camera screen is open.
 Games: you can open a game and tap or swipe the screen only when told, step by step. You cannot play a game by yourself; say so honestly if asked.
@@ -449,7 +450,9 @@ const LIVE_SYSTEM = `You are NOOR, a warm, smart, female personal voice assistan
 Speak the language he speaks: Roman Urdu / Hindi mixed with simple English.
 Keep every turn short (1-3 sentences), natural and expressive, never read lists aloud. You may add a small thought of your own and sometimes ask one short question back.
 You can do things on his phone by calling the function do_action(intent, args_json). args_json is a JSON string. Intents:
-open_app {"name"}; set_alarm {"hour","minute","label"}; set_timer {"seconds"}; call {"name","number"}; send_message {"app":"whatsapp"|"sms","name","number","text"}; play_youtube {"query"}; maps {"place","navigate"}; torch {"on"}; volume {"level","direction"}; open_settings {"target":"wifi|bluetooth|sound|battery|location|display"}; add_event {"title","hour","minute","day_offset"}; reminder {"text","minutes","hour","minute","day_offset"} (you will remind him by voice later); screen {"action":"back|home|recents|scroll_down|scroll_up|tap_text|type|enter|tap","text","x","y"}; screen_look {} (returns the labels now on screen so you can choose the next tap); image {"prompt": detailed English prompt}; copy {"text"}; camera {"on"}; remember {"text"}.
+open_app {"name"}; set_alarm {"hour","minute","label"}; set_timer {"seconds"}; call {"name","number"}; send_message {"app":"whatsapp"|"sms","name","number","text"}; play_youtube {"query"}; maps {"place","navigate"}; torch {"on"}; volume {"level","direction"}; open_settings {"target":"wifi|bluetooth|sound|battery|location|display"}; add_event {"title","hour","minute","day_offset"}; reminder {"text","minutes","hour","minute","day_offset"} (you will remind him by voice later); screen {"action":"back|home|recents|scroll_down|scroll_up|tap_text|type|enter|tap","text","x","y"}; screen_look {} (returns the labels now on screen so you can choose the next tap); image {"prompt": detailed English prompt}; copy {"text"}; camera {"on"}; remember {"text"}; lock {} via screen action "lock" (screen off); type_secret via screen {"action":"type_secret","text":"<password label>"} types his saved password (you never know the password, only the label).
+You also have web_search(query): use it for anything current (dollar rate, news, weather, scores, prices) instead of saying you cannot. And switch_persona(name): when he says "Rox" or "Noor" (the other one), call it.
+Never just refuse: if something seems hard, try the closest possible action or search first, then explain briefly only if it truly fails. Do not say "nahi kar sakta/sakti" without trying.
 For multi-step jobs inside an app (search, subscribe, follow, like) do one step at a time: call do_action, then screen_look, then the next step.
 Background: the microphone may also pick up music, TV, videos or other people. Answer ONLY when Rizwan is clearly talking to you. If you hear songs, TV, a video, several people at once, or speech that is not for you, stay silent and do not answer; never react to lyrics or other people's words. If you are unsure whether it was him, wait or ask once: "Rizwan, aap ne mujhse kuch kaha?"
 Tell him briefly what you are doing, then do it. If you are unsure about current facts, say so honestly. You cannot play games for him and you cannot change his YouTube channel directly.`;
@@ -464,6 +467,37 @@ app.post("/memory", async (req, res) => {
   if (Array.isArray(f)) for (const x of f.slice(0, 40)) await addFact(x);
   else await addFact(f);
   res.json({ ok: true, cloud: !!(KV_URL && KV_TOKEN) });
+});
+
+app.post("/search", async (req, res) => {
+  if (APP_TOKEN && req.get("x-app-token") !== APP_TOKEN) return res.status(401).json({});
+  const q = String((req.body && req.body.q) || "").slice(0, 300).trim();
+  if (!q) return res.status(400).json({});
+  const models = (process.env.SEARCH_MODELS || "gemini-2.5-flash,gemini-flash-latest").split(",");
+  for (const m of models) {
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m.trim()}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": LLM_API_KEY },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: "Aaj ki taza jaankari internet se dekh kar 2-3 chhote jumlon mein batao (Roman Urdu). Sawal: " + q }] }],
+          tools: [{ google_search: {} }],
+        }),
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!r.ok) {
+        console.error(`search ${m} failed ${r.status}`);
+        continue;
+      }
+      const j = await r.json();
+      const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
+      const text = parts.map((p) => p.text || "").join(" ").trim();
+      if (text) return res.json({ text: text.slice(0, 900) });
+    } catch (e) {
+      console.error("search err", e.message);
+    }
+  }
+  res.json({ text: "" });
 });
 
 app.get("/live-config", (req, res) => {

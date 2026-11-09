@@ -175,13 +175,35 @@ object Actions {
         if (name.isBlank()) return null
         if (ctx.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) return null
         return try {
+            val skip = setOf("bhai", "bhaiya", "api", "apy", "baji", "ji", "sahab", "sir", "ko", "call", "karo", "ka", "ki", "number")
+            val q = name.lowercase().trim()
+            val tokens = q.split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length > 1 && it !in skip }
+            var best: String? = null
+            var bestScore = 0
             ctx.contentResolver.query(
                 ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
-                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " LIKE ?",
-                arrayOf("%$name%"),
-                null
-            )?.use { if (it.moveToFirst()) it.getString(0) else null }
+                arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER),
+                null, null, null
+            )?.use { c ->
+                while (c.moveToNext()) {
+                    val n = (c.getString(0) ?: "").lowercase().trim()
+                    val num = c.getString(1) ?: continue
+                    var sc = 0
+                    if (n == q) sc = 100
+                    else if (n.startsWith(q)) sc = 80
+                    else if (n.contains(q)) sc = 60
+                    else if (tokens.isNotEmpty()) {
+                        val hit = tokens.count { n.contains(it) }
+                        if (hit == tokens.size) sc = 50 + hit else if (hit > 0) sc = 20 + hit
+                    }
+                    sc -= (n.length / 10)
+                    if (sc > bestScore) {
+                        bestScore = sc
+                        best = num
+                    }
+                }
+            }
+            if (bestScore >= 20) best else null
         } catch (e: Exception) {
             null
         }
@@ -276,7 +298,13 @@ object Actions {
                 if (!launch(ctx, i)) return "Calendar nahi khul saka."
             }
             "screen" -> {
-                val r = NoorAccess.screen(s.optString("action"), s.optString("text"), s.optInt("x", 50), s.optInt("y", 50))
+                var act = s.optString("action")
+                var txt = s.optString("text")
+                if (act == "type_secret") {
+                    txt = Secrets.get(ctx, txt) ?: return "Is naam ka password Noor ki Settings mein save nahi hai."
+                    act = "type"
+                }
+                val r = NoorAccess.screen(act, txt, s.optInt("x", 50), s.optInt("y", 50))
                 if (r != null) return r
             }
             "send_message" -> {

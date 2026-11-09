@@ -149,6 +149,30 @@ class NoorService : Service() {
 
     /** Live ke dauran Noor ke kaam (do_action). */
     private fun liveTool(name: String, args: JSONObject, cb: (String) -> Unit) {
+        if (name == "web_search") {
+            val base = prefs().getString("url", MainActivity.DEFAULT_URL)!!.trim().trimEnd('/')
+            val token = prefs().getString("token", "")!!
+            val q = args.optString("query")
+            Thread {
+                val r = Net.search(base, token, q)
+                main.post { cb(if (r.isBlank()) "Internet se jawab nahi mila." else r) }
+            }.start()
+            return
+        }
+        if (name == "switch_persona") {
+            val toRox = args.optString("name").lowercase().contains("rox")
+            if (toRox == Persona.isRox) {
+                cb("Wo pehle se hi baat kar raha hai.")
+                return
+            }
+            cb("Theek hai, bula rahi hoon.")
+            Persona.set(this, if (toRox) "rox" else "noor")
+            main.postDelayed({
+                live?.end(if (toRox) "Rox aa gaya." else "Noor aa gayi.")
+                main.postDelayed({ startLive() }, 1500)
+            }, 1800)
+            return
+        }
         val intent = args.optString("intent")
         val slots = try {
             JSONObject(args.optString("args_json", "{}").ifBlank { "{}" })

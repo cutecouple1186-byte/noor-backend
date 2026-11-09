@@ -120,10 +120,28 @@ class LiveSession(
                     )
                     .put("required", JSONArray().put("intent"))
             )
+        val fnSearch = JSONObject()
+            .put("name", "web_search")
+            .put("description", "Internet par abhi ki jaankari dhoondo (dollar rate, khabar, mausam, score, koi bhi taza cheez).")
+            .put(
+                "parameters",
+                JSONObject().put("type", "OBJECT")
+                    .put("properties", JSONObject().put("query", JSONObject().put("type", "STRING")))
+                    .put("required", JSONArray().put("query"))
+            )
+        val fnPersona = JSONObject()
+            .put("name", "switch_persona")
+            .put("description", "Dusre assistant ko bulao: name 'rox' ya 'noor'.")
+            .put(
+                "parameters",
+                JSONObject().put("type", "OBJECT")
+                    .put("properties", JSONObject().put("name", JSONObject().put("type", "STRING")))
+                    .put("required", JSONArray().put("name"))
+            )
         val su = JSONObject()
             .put("model", "models/$model")
             .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", system + "\nUser ke baare mein yaadein: " + memories))))
-            .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", JSONArray().put(fn))))
+            .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", JSONArray().put(fn).put(fnSearch).put(fnPersona))))
             .put("inputAudioTranscription", JSONObject())
             .put("outputAudioTranscription", JSONObject())
         if (shape == 0) {

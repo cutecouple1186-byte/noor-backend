@@ -749,6 +749,29 @@ class MainActivity : Activity() {
             refreshSettings()
         }
         col.addView(autoBtn)
+        col.addView(TextView(this).apply {
+            text = "Passwords (sirf is phone mein, encrypted)"
+            setTextColor(Color.parseColor("#E6F1FF"))
+            textSize = 14f
+            setPadding(0, dp(14), 0, dp(4))
+        })
+        val pl = EditText(this).apply { hint = "Naam (jaise instagram)"; setTextColor(Color.WHITE); setHintTextColor(Color.GRAY); setSingleLine(true) }
+        val pv = EditText(this).apply { hint = "Password"; setTextColor(Color.WHITE); setHintTextColor(Color.GRAY); setSingleLine(true); inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD }
+        col.addView(pl)
+        col.addView(pv)
+        col.addView(button("Password save karo") {
+            if (Secrets.put(this, pl.text.toString(), pv.text.toString())) {
+                Toast.makeText(this, "Save: " + pl.text.toString().trim(), Toast.LENGTH_SHORT).show()
+                pl.setText(""); pv.setText("")
+            } else Toast.makeText(this, "Naam aur password dono likhein", Toast.LENGTH_SHORT).show()
+        })
+        col.addView(button("Saved naam dekho / hatao") {
+            val ls = Secrets.labels(this)
+            if (ls.isEmpty()) Toast.makeText(this, "Koi password nahi", Toast.LENGTH_SHORT).show()
+            else android.app.AlertDialog.Builder(this).setTitle("Hatane ke liye dabayein")
+                .setItems(ls.toTypedArray()) { _, i -> Secrets.remove(this, ls[i]); Toast.makeText(this, "Hata diya", Toast.LENGTH_SHORT).show() }
+                .show()
+        })
         col.addView(button("Save karo") {
             saveSettings()
             Toast.makeText(this, "Save ho gaya", Toast.LENGTH_SHORT).show()
