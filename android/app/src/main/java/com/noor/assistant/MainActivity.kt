@@ -353,7 +353,8 @@ class MainActivity : Activity() {
         val orange = Color.parseColor("#F97316")
         rowOf(box("music", "🎵", "MUSIC", PINK, "Gaane lagao") { sendTyped("YouTube par mere liye achhe gaane lagao") },
             box("weather", "☁", "MAUSAM", blue, "...") { sendTyped("Aaj ka mausam batao") })
-        rowOf(box("namaz", "🕌", "NAMAZ", green, "...") { sendTyped("Namaz ke waqt batao") })
+        rowOf(box("namaz", "🕌", "NAMAZ", green, "...") { sendTyped("Namaz ke waqt batao") },
+            box("sleep", "🌙", "GOOD NIGHT", blue, "Focus + screen off") { sendTyped("Good night") })
         rowOf(box("camera", "📷", "CAMERA", CYAN, "Dekhna shuru") { show(1) },
             box("notif", "🔔", "NOTIFICATION", amber, "Kis ka msg?") { sendTyped("Kis ka msg aaya? Notifications parho") })
         rowOf(box("photo", "🖼", "PHOTO", PINK, "Gallery se bhejo") { pickPhoto() },
