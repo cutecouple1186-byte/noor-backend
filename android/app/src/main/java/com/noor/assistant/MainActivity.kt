@@ -87,6 +87,8 @@ class MainActivity : Activity() {
     private lateinit var homePage: View
     private lateinit var visionPage: FrameLayout
     private lateinit var memoryPage: View
+    private lateinit var chatPage: View
+    private lateinit var chatScroll: ScrollView
     private lateinit var settingsPage: View
     private val navItems = ArrayList<TextView>()
     private lateinit var micBtn: TextView
@@ -180,10 +182,12 @@ class MainActivity : Activity() {
         homePage = buildHome()
         visionPage = FrameLayout(this)
         memoryPage = buildMemory()
+        chatPage = buildChat()
         settingsPage = buildSettings()
         pages.addView(homePage, FrameLayout.LayoutParams(MATCH, MATCH))
         pages.addView(visionPage, FrameLayout.LayoutParams(MATCH, MATCH))
         pages.addView(memoryPage, FrameLayout.LayoutParams(MATCH, MATCH))
+        pages.addView(chatPage, FrameLayout.LayoutParams(MATCH, MATCH))
         pages.addView(settingsPage, FrameLayout.LayoutParams(MATCH, MATCH))
 
         root.addView(pages, lp(MATCH, 0, 1f))
@@ -272,7 +276,7 @@ class MainActivity : Activity() {
         mp.setMargins(dp(6), 0, dp(6), 0)
         bar.addView(micBtn, mp)
 
-        bar.addView(item("★\nMemory", 2), lp(0, WRAP, 1f))
+        bar.addView(item("💬\nChat", 2), lp(0, WRAP, 1f))
         bar.addView(item("⚙\nSettings", 3), lp(0, WRAP, 1f))
         return bar
     }
@@ -281,11 +285,13 @@ class MainActivity : Activity() {
         current = idx
         homePage.visibility = if (idx == 0) View.VISIBLE else View.GONE
         visionPage.visibility = if (idx == 1) View.VISIBLE else View.GONE
-        memoryPage.visibility = if (idx == 2) View.VISIBLE else View.GONE
+        memoryPage.visibility = if (idx == 4) View.VISIBLE else View.GONE
+        chatPage.visibility = if (idx == 2) View.VISIBLE else View.GONE
         settingsPage.visibility = if (idx == 3) View.VISIBLE else View.GONE
         for (i in navItems.indices) navItems[i].setTextColor(if (i == idx) CYAN else MUTED)
         if (idx == 1) openVision()
-        if (idx == 2) refreshMemory()
+        if (idx == 4) refreshMemory()
+        if (idx == 2) refreshHome()
         if (idx == 3) refreshSettings()
     }
 
@@ -356,11 +362,6 @@ class MainActivity : Activity() {
         }
         val green = Color.parseColor("#34D399"); val amber = Color.parseColor("#FBBF24"); val blue = Color.parseColor("#60A5FA")
         val orange = Color.parseColor("#F97316")
-        val chatBox = box("chat", "💬", "BAAT-CHEET (sab text yahan)", CYAN, "...") { showChatDialog() }
-        boxVals["chat"]?.maxLines = 4
-        val cp = lp(MATCH, WRAP)
-        cp.setMargins(dp(3), dp(6), dp(3), 0)
-        grid.addView(chatBox, cp)
         rowOf(box("music", "🎵", "MUSIC", PINK, "Gaane lagao") { sendTyped("YouTube par mere liye achhe gaane lagao") },
             box("weather", "☁", "MAUSAM", blue, "...") { sendTyped("Aaj ka mausam batao") })
         rowOf(box("namaz", "🕌", "NAMAZ", green, "...") { sendTyped("Namaz ke waqt batao") },
@@ -385,7 +386,7 @@ class MainActivity : Activity() {
             q.setMargins(0, dp(4), 0, dp(4))
             leftCol.addView(b, q)
         }
-        nb("memory", "🧠", "MEMORY", CYAN) { show(2) }
+        nb("memory", "🧠", "MEMORY", CYAN) { show(4) }
         nb("skills", "⚡", "SKILLS", Color.parseColor("#34D399")) { sendTyped("Tum kya kya kar sakti ho? Chhoti si list batao") }
         nb("char", "🎭", "CHARACTER", Color.parseColor("#EF4444")) { Persona.set(this, if (Persona.isRox) "noor" else "rox"); refreshHome() }
         nb("settings", "⚙", "SETTING", Color.parseColor("#94A3B8")) { show(3) }
@@ -467,10 +468,57 @@ class MainActivity : Activity() {
         return col
     }
 
+    private fun buildChat(): View {
+        val col = LinearLayout(this)
+        col.orientation = LinearLayout.VERTICAL
+        col.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.parseColor("#1E0B3A"), Color.parseColor("#0A1630"), BG))
+        val head = LinearLayout(this)
+        head.orientation = LinearLayout.HORIZONTAL
+        head.gravity = Gravity.CENTER_VERTICAL
+        head.setPadding(dp(16), dp(14), dp(16), dp(8))
+        head.addView(tv("💬  BAAT-CHEET", 18f, CYAN, true), lp(0, WRAP, 1f))
+        val clr = pill("Saaf karo") { Chat.clear(); refreshHome() }
+        head.addView(clr, lp(WRAP, WRAP))
+        col.addView(head, lp(MATCH, WRAP))
+        col.addView(RainbowLine(this), lp(MATCH, dp(3)))
+        chatScroll = ScrollView(this)
+        logBox.setPadding(dp(14), dp(8), dp(14), dp(8))
+        chatScroll.addView(logBox)
+        col.addView(chatScroll, lp(MATCH, 0, 1f))
+        val row = LinearLayout(this)
+        row.orientation = LinearLayout.HORIZONTAL
+        row.gravity = Gravity.CENTER_VERTICAL
+        row.setPadding(dp(12), dp(6), dp(12), dp(8))
+        val et = EditText(this)
+        et.hint = "Yahan likhein..."
+        et.setHintTextColor(MUTED)
+        et.setTextColor(TEXT)
+        et.textSize = 15f
+        et.maxLines = 3
+        et.background = shape(CARD, 24, LINE, 1)
+        et.setPadding(dp(16), dp(10), dp(16), dp(10))
+        val go = tv("➤", 20f, Color.parseColor("#04121C"), true)
+        go.gravity = Gravity.CENTER
+        go.background = shape(CYAN, 24)
+        go.setOnClickListener {
+            val m = et.text.toString().trim()
+            if (m.isNotEmpty()) {
+                et.setText("")
+                sendTyped(m)
+            }
+        }
+        row.addView(et, lp(0, WRAP, 1f))
+        val gp = lp(dp(48), dp(48))
+        gp.leftMargin = dp(8)
+        row.addView(go, gp)
+        col.addView(row, lp(MATCH, WRAP))
+        return col
+    }
+
     private fun showChatDialog() {
         val all = Chat.snapshot()
         val sv = ScrollView(this)
-        val tvv = tv(if (all.isEmpty()) "Abhi koi baat nahi." else all.joinToString("\n\n") { (if (it.first == "user") "Aap: " else Persona.name + ": ") + it.second }, 14f, TEXT)
+        val tvv = tv(if (all.isEmpty()) "Abhi koi baat nahi." else all.joinToString("\n\n") { (if (it.first == "me") "Aap: " else Persona.name + ": ") + it.second }, 14f, TEXT)
         tvv.setPadding(dp(16), dp(12), dp(16), dp(12))
         sv.addView(tvv)
         android.app.AlertDialog.Builder(this).setTitle("Baat-cheet").setView(sv)
@@ -746,9 +794,13 @@ class MainActivity : Activity() {
             logBox.removeAllViews()
             rendered = 0
         }
+        var added = false
+        for (i in rendered until all.size) {
+            addBubble(all[i].first, all[i].second)
+            added = true
+        }
         rendered = all.size
-        val lastAssistant = all.lastOrNull { it.first != "user" }?.second ?: "Abhi koi baat nahi. Mic dabakar bolein."
-        boxVals["chat"]?.text = lastAssistant.take(240)
+        if (added) chatScroll.post { chatScroll.fullScroll(View.FOCUS_DOWN) }
     }
 
     private fun addBubble(who: String, text: String) {
