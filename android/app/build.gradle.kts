@@ -15,8 +15,8 @@ android {
         applicationId = "com.noor.assistant"
         minSdk = 26
         targetSdk = 34
-        versionCode = 17
-        versionName = "17.0"
+        versionCode = 18
+        versionName = "18.0"
     }
 
     buildTypes {

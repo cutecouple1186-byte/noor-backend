@@ -93,6 +93,7 @@ class MainActivity : Activity() {
 
     // Home
     private lateinit var holo: HoloView
+    private lateinit var termBtn: TextView
     private val boxVals = HashMap<String, TextView>()
     private lateinit var statePill: TextView
     private lateinit var greeting: TextView
@@ -324,9 +325,7 @@ class MainActivity : Activity() {
             Persona.set(this, if (Persona.isRox) "noor" else "rox")
             refreshHome()
         }
-        content.addView(stage, lp(MATCH, dp(320)))
 
-        content.addView(BusView(this), lp(MATCH, dp(26)))
         val grid = LinearLayout(this)
         grid.orientation = LinearLayout.VERTICAL
         fun box(key: String, icon: String, title: String, accent: Int, value: String, onClick: () -> Unit): LinearLayout {
@@ -352,20 +351,53 @@ class MainActivity : Activity() {
         }
         val green = Color.parseColor("#34D399"); val amber = Color.parseColor("#FBBF24"); val blue = Color.parseColor("#60A5FA")
         val orange = Color.parseColor("#F97316")
-        rowOf(box("memory", "🧠", "MEMORY", CYAN, "-") { show(2) },
-            box("skills", "⚡", "SKILLS", PINK, "Kya kar sakti hoon") { sendTyped("Tum kya kya kar sakti ho? Chhoti si list batao") })
-        rowOf(box("char", "🎭", "CHARACTER", orange, "-") { Persona.set(this, if (Persona.isRox) "noor" else "rox"); refreshHome() },
-            box("music", "🎵", "MUSIC", PINK, "Gaane lagao") { sendTyped("YouTube par mere liye achhe gaane lagao") })
-        rowOf(box("weather", "☁", "MAUSAM", blue, "...") { sendTyped("Aaj ka mausam batao") },
-            box("namaz", "🕌", "NAMAZ", green, "...") { sendTyped("Namaz ke waqt batao") })
+        rowOf(box("music", "🎵", "MUSIC", PINK, "Gaane lagao") { sendTyped("YouTube par mere liye achhe gaane lagao") },
+            box("weather", "☁", "MAUSAM", blue, "...") { sendTyped("Aaj ka mausam batao") })
+        rowOf(box("namaz", "🕌", "NAMAZ", green, "...") { sendTyped("Namaz ke waqt batao") })
         rowOf(box("camera", "📷", "CAMERA", CYAN, "Dekhna shuru") { show(1) },
             box("notif", "🔔", "NOTIFICATION", amber, "Kis ka msg?") { sendTyped("Kis ka msg aaya? Notifications parho") })
         rowOf(box("photo", "🖼", "PHOTO", PINK, "Gallery se bhejo") { pickPhoto() },
-            box("battery", "🔋", "BATTERY", green, "-") { sendTyped("Mera battery aur phone ka haal batao") })
-        rowOf(box("study", "📖", "STUDY", blue, "Padhai mein madad") { sendTyped("Mujhe padhai mein madad chahiye, mujhse sawal poochho") },
-            box("vent", "💬", "DIL KI BAAT", orange, "Dil halka karo") { sendTyped("Mera dil halka karna hai, meri baat suno") })
+            box("face", "🎭", "CHEHRA", orange, "Noor ⇄ Rox") { Persona.set(this, if (Persona.isRox) "noor" else "rox"); refreshHome() })
+        rowOf(box("battery", "🔋", "BATTERY", green, "-") { sendTyped("Mera battery aur phone ka haal batao") },
+            box("study", "📖", "STUDY", blue, "Padhai mein madad") { sendTyped("Mujhe padhai mein madad chahiye, mujhse sawal poochho") })
         rowOf(box("pass", "🔑", "PASSWORDS", amber, "Sirf phone mein") { show(3) },
-            box("settings", "⚙", "SETTINGS", CYAN, "Sab ijazaten") { show(3) })
+            box("vent", "💬", "DIL KI BAAT", orange, "Dil halka karo") { sendTyped("Mera dil halka karna hai, meri baat suno") })
+        // ---- video jaisa: left boxes + lines + hologram panel ----
+        val node = NodePanel(this)
+        node.orientation = LinearLayout.HORIZONTAL
+        val leftCol = LinearLayout(this)
+        leftCol.orientation = LinearLayout.VERTICAL
+        fun nb(key: String, icon: String, title: String, accent: Int, onClick: () -> Unit) {
+            val b = box(key, icon, title, accent, "", onClick)
+            b.setPadding(dp(8), dp(9), dp(8), dp(9))
+            val q = lp(MATCH, 0, 1f)
+            q.setMargins(0, dp(4), 0, dp(4))
+            leftCol.addView(b, q)
+        }
+        nb("memory", "🧠", "MEMORY", CYAN) { show(2) }
+        nb("skills", "⚡", "SKILLS", Color.parseColor("#34D399")) { sendTyped("Tum kya kya kar sakti ho? Chhoti si list batao") }
+        nb("char", "🎭", "CHARACTER", Color.parseColor("#EF4444")) { Persona.set(this, if (Persona.isRox) "noor" else "rox"); refreshHome() }
+        nb("settings", "⚙", "SETTING", Color.parseColor("#94A3B8")) { show(3) }
+        node.addView(leftCol, lp(dp(118), dp(300)))
+        val panel = LinearLayout(this)
+        panel.orientation = LinearLayout.VERTICAL
+        panel.background = shape(Color.parseColor("#05121A"), 16, Color.parseColor("#0F6B78"), 2)
+        panel.setPadding(dp(6), dp(6), dp(6), dp(8))
+        panel.addView(stage, lp(MATCH, 0, 1f))
+        termBtn = tv("TERMINATE", 11f, Color.parseColor("#EF4444"), true)
+        termBtn.gravity = Gravity.CENTER
+        termBtn.letterSpacing = 0.2f
+        termBtn.setPadding(dp(8), dp(7), dp(8), dp(7))
+        termBtn.background = shape(Color.parseColor("#1A0A0F"), 8, Color.parseColor("#EF4444"), 1)
+        termBtn.setOnClickListener { toggleService() }
+        panel.addView(termBtn, lp(MATCH, WRAP))
+        val pl = lp(0, dp(300), 1f)
+        pl.leftMargin = dp(26)
+        node.addView(panel, pl)
+        node.leftCol = leftCol
+        node.panel = panel
+        content.addView(node, lp(MATCH, dp(300)))
+        content.addView(BusView(this), lp(MATCH, dp(26)))
         content.addView(grid, lp(MATCH, WRAP))
         moodTv = tv("-", 15f, PINK, true)
 
@@ -427,6 +459,8 @@ class MainActivity : Activity() {
 
     private fun refreshBoxes() {
         boxVals["memory"]?.text = Chat.snapshot().size.toString() + " baatein, " + prefs().getString("memories", "").orEmpty().lines().filter { it.isNotBlank() }.size + " yaadein"
+        boxVals["skills"]?.text = "40+ kaam"
+        boxVals["settings"]?.text = "Ijazaten"
         boxVals["char"]?.text = if (Persona.isRox) "Rox (ladka) ⇄ Noor" else "Noor (ladki) ⇄ Rox"
         try {
             val b = registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
@@ -448,6 +482,41 @@ class MainActivity : Activity() {
     }
 
     private var lastInfo = 0L
+
+    /** Left boxes se hologram panel tak rang-birangi lines (video jaisa). */
+    private class NodePanel(c: Context) : LinearLayout(c) {
+        var leftCol: LinearLayout? = null
+        var panel: View? = null
+        private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val cols = intArrayOf(Color.parseColor("#22D3EE"), Color.parseColor("#34D399"), Color.parseColor("#EF4444"), Color.parseColor("#94A3B8"))
+        override fun dispatchDraw(cv: Canvas) {
+            super.dispatchDraw(cv)
+            val l = leftCol ?: return
+            val pn = panel ?: return
+            p.style = Paint.Style.STROKE
+            p.strokeWidth = 3f
+            val n = l.childCount
+            for (i in 0 until n) {
+                val b = l.getChildAt(i)
+                val x0 = (l.left + b.right).toFloat()
+                val y0 = (l.top + b.top + b.bottom) / 2f
+                val x1 = pn.left.toFloat()
+                val y1 = pn.top + pn.height * (i + 1f) / (n + 1f)
+                val xm = x0 + (x1 - x0) * 0.5f
+                p.color = cols[i % cols.size]
+                p.alpha = 200
+                val path = android.graphics.Path()
+                path.moveTo(x0, y0)
+                path.lineTo(xm, y0)
+                path.lineTo(xm, y1)
+                path.lineTo(x1, y1)
+                cv.drawPath(path, p)
+                p.style = Paint.Style.FILL
+                cv.drawCircle(x1, y1, 5f, p)
+                p.style = Paint.Style.STROKE
+            }
+        }
+    }
 
     /** Chehre se boxes tak jaati lines. */
     private class BusView(c: Context) : View(c) {
@@ -623,6 +692,7 @@ class MainActivity : Activity() {
         titleTv.text = Persona.name + " ⇄"
         titleTv.setTextColor(if (Persona.isRox) Color.parseColor("#F97316") else CYAN)
         holo.setPersona(Persona.isRox)
+        termBtn.text = if (NoorService.isRunning) "TERMINATE" else "START"
         refreshBoxes()
         detailTv.text = if (Chat.detail.isNotEmpty()) Chat.detail
         else if (NoorService.isRunning) (if (Persona.isRox) "Rox sun raha hai. \"Hey Rox\" ya \"Hey Noor\" bolein, ya likhein." else "Noor sun rahi hai. \"Hey Noor\" ya \"Hey Rox\" bolein, ya likhein.")
@@ -740,8 +810,10 @@ class MainActivity : Activity() {
             val card = LinearLayout(this)
             card.orientation = LinearLayout.VERTICAL
             card.setPadding(dp(14), dp(12), dp(14), dp(12))
-            card.background = shape(CARD, 16, accent, 2)
-            card.addView(tv(title, 12f, accent, true))
+            card.background = shape(Color.parseColor("#07101B"), 16, accent, 2)
+            val hd = tv(title, 12f, accent, true)
+            hd.letterSpacing = 0.12f
+            card.addView(hd)
             val p = lp(MATCH, WRAP)
             p.setMargins(0, dp(14), 0, 0)
             col.addView(card, p)
@@ -827,6 +899,41 @@ class MainActivity : Activity() {
         cur.addView(button("Shehar save karo") {
             prefs().edit().putString("city", cityEt.text.toString().trim().ifBlank { "Karachi" }).apply()
             Toast.makeText(this, "Shehar save", Toast.LENGTH_SHORT).show()
+        })
+        sec("🎭  CHEHRA (asli jaisa banao)", Color.parseColor("#E879F9"))
+        fun makeFace(who: String, prompt: String) {
+            Toast.makeText(this, who + " ka chehra ban raha hai (1 minute)...", Toast.LENGTH_LONG).show()
+            val base = prefs().getString("url", DEFAULT_URL)!!.trim().trimEnd('/')
+            val token = prefs().getString("token", "")!!
+            Thread {
+                val bytes = Net.image(base, token, prompt)
+                runOnUiThread {
+                    if (bytes == null || bytes.size < 1000) {
+                        Toast.makeText(this, "Chehra nahi ban saka, thodi der baad dobara dabayein.", Toast.LENGTH_LONG).show()
+                    } else {
+                        java.io.File(filesDir, "face_" + who.lowercase() + ".png").writeBytes(bytes)
+                        holo.reload()
+                        Toast.makeText(this, who + " ka naya chehra lag gaya. Home dekhein.", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }.start()
+        }
+        cur.addView(button("Noor ka asli jaisa chehra banao") {
+            makeFace("Noor", "Photorealistic centered front-facing head-and-shoulders portrait of an original fictional young woman with round glasses and long dark hair with bangs, relaxed neutral expression with lips gently closed, looking straight at the camera, soft even studio light, plain dark background. Not a real person.")
+        })
+        cur.addView(button("Rox ka asli jaisa chehra banao") {
+            makeFace("Rox", "Photorealistic centered front-facing head-and-shoulders portrait of an original fictional young man with thin round glasses and short messy black hair, wearing a dark blazer over a white shirt, relaxed neutral expression with lips gently closed, looking straight at the camera, soft even studio light, plain dark background. Not a real person.")
+        })
+        cur.addView(button("Hont thora upar") {
+            val k = "mouthY_" + (if (Persona.isRox) "rox" else "noor")
+            prefs().edit().putFloat(k, prefs().getFloat(k, 0.68f) - 0.012f).apply(); holo.reload()
+        })
+        cur.addView(button("Hont thora neeche") {
+            val k = "mouthY_" + (if (Persona.isRox) "rox" else "noor")
+            prefs().edit().putFloat(k, prefs().getFloat(k, 0.68f) + 0.012f).apply(); holo.reload()
+        })
+        cur.addView(button("Cartoon chehra wapas") {
+            java.io.File(filesDir, "face_noor.png").delete(); java.io.File(filesDir, "face_rox.png").delete(); holo.reload()
         })
         sec("🔔  EXTRA IJAZATEN", Color.parseColor("#F97316"))
         cur.addView(button("Notification parhne ki ijazat (Noor)") {

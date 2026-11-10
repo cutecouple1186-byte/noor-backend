@@ -8,28 +8,38 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.view.View
+import java.io.File
 import java.util.Random
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.sqrt
 
-/** Chamakte dots se bana hologram chehra. Bolte waqt hont awaaz ke saath hilte hain. */
-class HoloView(ctx: Context) : View(ctx) {
+/** Chamakte dots se bana hologram chehra (video jaisa). Bolte waqt hont awaaz ke saath hilte hain. */
+class HoloView(private val ctx: Context) : View(ctx) {
     var state = "off"
     private var rox = false
     private var built = false
+    private var real = false
 
     private var px = FloatArray(0)
     private var py = FloatArray(0)
     private var ph = FloatArray(0)
+    private var sx = FloatArray(0)
+    private var sy = FloatArray(0)
     private var bucket = IntArray(0)
     private var xs = arrayOf(FloatArray(0), FloatArray(0), FloatArray(0))
     private var counts = IntArray(3)
+    private var form = 0f
 
+    private val stars = FloatArray(80) { Random(it.toLong() * 31).nextFloat() }
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private var t = 0f
     private var mouth = 0f
+    private var mouthY = 0.654f
+    private var mouthX = 0.5f
+    private var mouthW = 0.095f
 
     fun setPersona(r: Boolean) {
         if (!built || r != rox) {
@@ -38,28 +48,74 @@ class HoloView(ctx: Context) : View(ctx) {
         }
     }
 
+    /** Naya chehra (Settings se) ya mouth position badalne ke baad dobara banao. */
+    fun reload() = build()
+
+    private fun faceFile() = File(ctx.filesDir, if (rox) "face_rox.png" else "face_noor.png")
+
     private fun build() {
-        val bmp = BitmapFactory.decodeResource(resources, if (rox) R.drawable.holo_rox else R.drawable.holo_noor)
-        val n = 128
-        val sc = Bitmap.createScaledBitmap(bmp, n, n, true)
+        val f = faceFile()
+        var bmp: Bitmap? = null
+        real = false
+        if (f.exists()) {
+            bmp = try { BitmapFactory.decodeFile(f.absolutePath) } catch (e: Exception) { null }
+            if (bmp != null) real = true
+        }
+        if (bmp == null) bmp = BitmapFactory.decodeResource(resources, if (rox) R.drawable.holo_rox else R.drawable.holo_noor)
+        val n = if (real) 176 else 140
+        // square center-crop
+        val side = min(bmp!!.width, bmp.height)
+        val crop = Bitmap.createBitmap(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side)
+        val sc = Bitmap.createScaledBitmap(crop, n, n, true)
+        val prefs = ctx.getSharedPreferences("noor", Context.MODE_PRIVATE)
+        if (real) {
+            mouthY = prefs.getFloat("mouthY_" + (if (rox) "rox" else "noor"), 0.68f)
+            mouthW = 0.075f
+        } else {
+            mouthY = 0.654f
+            mouthW = 0.095f
+        }
+        val lum = FloatArray(n * n)
+        val al = FloatArray(n * n)
+        for (y in 0 until n) for (x in 0 until n) {
+            val c = sc.getPixel(x, y)
+            al[y * n + x] = Color.alpha(c) / 255f
+            lum[y * n + x] = (Color.red(c) * 0.3f + Color.green(c) * 0.59f + Color.blue(c) * 0.11f) / 255f
+        }
         val rnd = Random(7)
         val lx = ArrayList<Float>()
         val ly = ArrayList<Float>()
         val lb = ArrayList<Int>()
-        for (y in 0 until n) for (x in 0 until n) {
-            val c = sc.getPixel(x, y)
-            if (Color.alpha(c) < 120) continue
-            val lum = (Color.red(c) * 0.3f + Color.green(c) * 0.59f + Color.blue(c) * 0.11f) / 255f
-            if (rnd.nextFloat() > 0.28f + 0.72f * lum) continue
+        for (y in 1 until n - 1) for (x in 1 until n - 1) {
+            val i = y * n + x
+            if (al[i] < 0.45f) continue
+            val gx = lum[i + 1] - lum[i - 1]
+            val gy = lum[i + n] - lum[i - n]
+            val edge = sqrt(gx * gx + gy * gy)
+            var w = 0.2f + 0.8f * (if (real) lum[i] * lum[i] * 1.4f else lum[i])
+            if (edge > 0.12f) w = 1f
+            val fx = (x.toFloat() / n - 0.5f) / 0.47f
+            val fy = (y.toFloat() / n - 0.48f) / 0.52f
+            if (real) w *= (1f - (fx * fx + fy * fy).coerceIn(0f, 1f).let { it * it })
+            val yy = y.toFloat() / n
+            if (yy > 0.8f) w *= (1f - (yy - 0.8f) * 4f).coerceAtLeast(0f)
+            if (rnd.nextFloat() > w * (if (real) 0.9f else 1f)) continue
             lx.add((x + rnd.nextFloat()) / n)
             ly.add((y + rnd.nextFloat()) / n)
-            lb.add(if (lum > 0.72f) 2 else if (lum > 0.35f) 1 else 0)
+            lb.add(if (edge > 0.12f || lum[i] > 0.75f) 2 else if (lum[i] > 0.35f) 1 else 0)
         }
-        px = lx.toFloatArray()
-        py = ly.toFloatArray()
-        bucket = lb.toIntArray()
-        ph = FloatArray(px.size) { rnd.nextFloat() * 6.28f }
-        xs = Array(3) { FloatArray(px.size * 2) }
+        // zyada ho to patla karo (halke phone ke liye)
+        val keep = if (lx.size > 6500) 6500f / lx.size else 1f
+        val ix = ArrayList<Int>()
+        for (i in lx.indices) if (rnd.nextFloat() <= keep) ix.add(i)
+        px = FloatArray(ix.size) { lx[ix[it]] }
+        py = FloatArray(ix.size) { ly[ix[it]] }
+        bucket = IntArray(ix.size) { lb[ix[it]] }
+        ph = FloatArray(ix.size) { rnd.nextFloat() * 6.28f }
+        sx = FloatArray(ix.size) { (rnd.nextFloat() - 0.5f) * 1.6f }
+        sy = FloatArray(ix.size) { (rnd.nextFloat() - 0.5f) * 1.6f }
+        xs = Array(3) { FloatArray(ix.size * 2) }
+        form = 0f
         built = true
     }
 
@@ -67,69 +123,79 @@ class HoloView(ctx: Context) : View(ctx) {
         super.onDraw(c)
         if (!built) build()
         t += 0.04f
-        val s = min(width, height) * 0.86f * (1f + 0.008f * sin(t))
+        if (form < 1f) form = (form + 0.018f).coerceAtMost(1f)
+        val e = 1f - (1f - form) * (1f - form) * (1f - form)
+        val s = min(width, height) * 0.94f * (1f + 0.008f * sin(t))
         val ox = (width - s) / 2f
-        val oy = (height - s) / 2f + height * 0.01f
+        val oy = (height - s) / 2f
         val col = when (state) {
             "speaking" -> Color.parseColor("#E879F9")
             "thinking" -> Color.parseColor("#FBBF24")
             "listening" -> Color.parseColor("#22D3EE")
             "idle" -> Color.parseColor("#38BDF8")
-            else -> Color.parseColor("#475569")
+            else -> Color.parseColor("#3B5B7A")
         }
         val cx = width / 2f
         val cy = height / 2f
 
-        p.style = Paint.Style.STROKE
-        p.strokeWidth = 2f
-        for (i in 1..3) {
-            p.color = col
-            p.alpha = 90 / i
-            c.drawCircle(cx, cy, s * (0.5f + 0.07f * i + 0.01f * sin(t * 2 + i)), p)
+        // taare
+        p.style = Paint.Style.FILL
+        p.color = Color.WHITE
+        for (i in stars.indices step 2) {
+            p.alpha = (40 + 90 * abs(sin(t * 0.6f + i))).toInt()
+            c.drawCircle(stars[i] * width, stars[(i + 1) % stars.size] * height, 1.3f, p)
         }
 
+        // peeche halka neela dhuan
+        p.shader = android.graphics.RadialGradient(cx, cy, s * 0.55f, intArrayOf(Color.argb(70, Color.red(col), Color.green(col), Color.blue(col)), Color.TRANSPARENT), null, android.graphics.Shader.TileMode.CLAMP)
+        c.drawCircle(cx, cy, s * 0.55f, p)
+        p.shader = null
+
         counts[0] = 0; counts[1] = 0; counts[2] = 0
-        val amp = 1.1f
+        val amp = 1.0f + (if (state == "speaking") 0.8f else 0f)
         for (i in px.indices) {
             val b = bucket[i]
             val k = counts[b]
-            xs[b][k] = ox + px[i] * s + cos(t * 1.7f + ph[i]) * amp
-            xs[b][k + 1] = oy + py[i] * s + sin(t * 1.3f + ph[i]) * amp
+            xs[b][k] = ox + (px[i] + sx[i] * (1f - e)) * s + cos(t * 1.7f + ph[i]) * amp
+            xs[b][k + 1] = oy + (py[i] + sy[i] * (1f - e)) * s + sin(t * 1.3f + ph[i]) * amp
             counts[b] = k + 2
         }
         p.style = Paint.Style.STROKE
         p.strokeCap = Paint.Cap.ROUND
-        val dim = if (rox) "#1E4FA8" else "#0E5A8A"
+        val dim = if (rox) "#1D4ED8" else "#0E7490"
         val mid = if (rox) "#38BDF8" else "#22D3EE"
         val hi = if (rox) "#FDE68A" else "#E0FBFF"
-        p.strokeWidth = 2.4f; p.color = Color.parseColor(dim); p.alpha = 190
+        p.strokeWidth = 2.2f; p.color = Color.parseColor(dim); p.alpha = 200
         c.drawPoints(xs[0], 0, counts[0], p)
-        p.strokeWidth = 2.6f; p.color = Color.parseColor(mid); p.alpha = 230
+        p.strokeWidth = 2.5f; p.color = Color.parseColor(mid); p.alpha = 235
         c.drawPoints(xs[1], 0, counts[1], p)
+        // chamak (glow) + tez dots
+        p.strokeWidth = 8f; p.color = Color.parseColor(mid); p.alpha = 38
+        c.drawPoints(xs[2], 0, counts[2], p)
         p.strokeWidth = 3f; p.color = Color.parseColor(hi); p.alpha = 255
         c.drawPoints(xs[2], 0, counts[2], p)
 
         // scan line
-        val sy = oy + ((t * 0.35f) % 1f) * s
+        val sy2 = oy + ((t * 0.3f) % 1f) * s
         p.strokeWidth = 2f
         p.color = col
-        p.alpha = 70
-        c.drawLine(ox, sy, ox + s, sy, p)
+        p.alpha = 60
+        c.drawLine(ox + s * 0.1f, sy2, ox + s * 0.9f, sy2, p)
 
-        // hont
+        // hont (dots ki tarah, halka chamakta)
         val target = if (state == "speaking") (abs(sin(t * 7.3f)) * 0.6f + abs(sin(t * 3.1f + 1.3f)) * 0.4f) else 0f
         mouth += (target - mouth) * 0.35f
-        val mx = ox + s * 0.5f
-        val my = oy + s * 0.654f
-        val w = s * 0.095f
-        val h = s * (0.008f + 0.062f * mouth)
+        val mx = ox + s * mouthX
+        val my = oy + s * mouthY
+        val w = s * mouthW
+        val h = s * (0.006f + 0.05f * mouth)
         val r = RectF(mx - w, my - h, mx + w, my + h)
         p.style = Paint.Style.FILL
         p.color = Color.parseColor("#06111F")
-        p.alpha = 235
+        p.alpha = if (real) 200 else 235
         c.drawOval(r, p)
         p.style = Paint.Style.STROKE
-        p.strokeWidth = 3.4f
+        p.strokeWidth = 3f
         p.color = Color.parseColor(if (rox) "#FDE68A" else "#FFB4D0")
         p.alpha = 255
         c.drawOval(r, p)
