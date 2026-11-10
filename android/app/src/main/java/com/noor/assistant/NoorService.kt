@@ -122,6 +122,7 @@ class NoorService : Service() {
         }
         val base = prefs().getString("url", MainActivity.DEFAULT_URL)!!.trim().trimEnd('/')
         val token = prefs().getString("token", "")!!
+        Jarvis.loud(this)
         Chat.add("noor", "Live shuru ho rahi hai... thodi der mein bolein.")
         setState("thinking")
         val ls = LiveSession(
@@ -919,6 +920,8 @@ class NoorService : Service() {
                 true
             }
             p.prepare()
+            Jarvis.loud(this)
+            p.setVolume(1f, 1f)
             p.start()
             player = p
         } catch (e: Exception) {

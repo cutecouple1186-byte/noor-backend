@@ -212,4 +212,47 @@ object Jarvis {
         }
         return null
     }
+
+    /** Mausam (blocking). Misal: "31°C, saaf". */
+    fun weather(ctx: Context): String? {
+        val p = ctx.getSharedPreferences("noor", Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        if (now - p.getLong("wx_at", 0) < 900000 && p.getString("wx_city", "") == city(ctx)) return p.getString("wx", null)
+        return try {
+            val g = URL("https://geocoding-api.open-meteo.com/v1/search?count=1&name=" + Uri.encode(city(ctx))).openConnection() as HttpURLConnection
+            g.connectTimeout = 8000; g.readTimeout = 8000
+            val r = JSONObject(g.inputStream.bufferedReader().use { it.readText() }).getJSONArray("results").getJSONObject(0)
+            val f = URL("https://api.open-meteo.com/v1/forecast?current=temperature_2m,weather_code&latitude=" + r.getDouble("latitude") + "&longitude=" + r.getDouble("longitude")).openConnection() as HttpURLConnection
+            f.connectTimeout = 8000; f.readTimeout = 8000
+            val cur = JSONObject(f.inputStream.bufferedReader().use { it.readText() }).getJSONObject("current")
+            val code = cur.getInt("weather_code")
+            val d = when {
+                code == 0 -> "saaf"; code <= 3 -> "badal"; code in 45..48 -> "dhund"; code in 51..67 -> "barish"
+                code in 71..77 -> "baraf"; code in 80..82 -> "barish"; code >= 95 -> "toofan"; else -> "mausam"
+            }
+            val out = Math.round(cur.getDouble("temperature_2m")).toString() + "°C, " + d
+            p.edit().putLong("wx_at", now).putString("wx_city", city(ctx)).putString("wx", out).apply()
+            out
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** Agli namaz (blocking). Misal: "Asr 15:42". */
+    fun nextPrayer(ctx: Context): String? {
+        val t = prayerTimes(ctx) ?: return null
+        val now = SimpleDateFormat("HH:mm", Locale.ENGLISH).format(Date())
+        for (n in names) if (t[n]!! > now) return prayerLabel(n) + " " + t[n]
+        return prayerLabel("Fajr") + " " + t["Fajr"]
+    }
+
+    /** Awaaz tez: media volume 92% tak. */
+    fun loud(ctx: Context) {
+        try {
+            val am = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            if (am.getStreamVolume(AudioManager.STREAM_MUSIC) < max * 0.92) am.setStreamVolume(AudioManager.STREAM_MUSIC, (max * 0.92).toInt(), 0)
+        } catch (e: Exception) {
+        }
+    }
 }

@@ -5,7 +5,9 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
@@ -90,11 +92,11 @@ class MainActivity : Activity() {
     private lateinit var micBtn: TextView
 
     // Home
-    private lateinit var orb: OrbView
+    private lateinit var holo: HoloView
+    private val boxVals = HashMap<String, TextView>()
     private lateinit var statePill: TextView
     private lateinit var greeting: TextView
     private lateinit var titleTv: TextView
-    private lateinit var faceView: android.widget.ImageView
     private lateinit var detailTv: TextView
     private lateinit var moodTv: TextView
     private lateinit var logBox: LinearLayout
@@ -314,68 +316,58 @@ class MainActivity : Activity() {
         detailTv = tv("", 12f, MUTED)
         content.addView(detailTv, lp(MATCH, WRAP))
 
-        orb = OrbView(this)
-        orb.core = false
+        holo = HoloView(this)
+        holo.setPersona(Persona.isRox)
         val stage = FrameLayout(this)
-        stage.addView(orb, FrameLayout.LayoutParams(MATCH, MATCH))
-        val face = android.widget.ImageView(this)
-        face.setImageResource(R.drawable.noor_avatar)
-        face.scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
-        face.setBackgroundColor(Color.parseColor("#0B1626"))
-        face.outlineProvider = object : android.view.ViewOutlineProvider() {
-            override fun getOutline(view: View, outline: android.graphics.Outline) {
-                outline.setOval(0, 0, view.width, view.height)
-            }
-        }
-        face.clipToOutline = true
-        val fp = FrameLayout.LayoutParams(dp(150), dp(150))
-        fp.gravity = Gravity.CENTER
-        stage.addView(face, fp)
-        orb.avatar = face
-        faceView = face
-        face.setOnClickListener {
+        stage.addView(holo, FrameLayout.LayoutParams(MATCH, MATCH))
+        holo.setOnClickListener {
             Persona.set(this, if (Persona.isRox) "noor" else "rox")
             refreshHome()
         }
-        content.addView(stage, lp(MATCH, dp(280)))
+        content.addView(stage, lp(MATCH, dp(320)))
 
-        val chips = LinearLayout(this)
-        chips.orientation = LinearLayout.HORIZONTAL
-        fun chip(label: String, msg: String) {
-            val c = pill(label) { sendTyped(msg) }
-            val p = lp(0, WRAP, 1f)
-            p.setMargins(dp(3), 0, dp(3), 0)
-            chips.addView(c, p)
+        content.addView(BusView(this), lp(MATCH, dp(26)))
+        val grid = LinearLayout(this)
+        grid.orientation = LinearLayout.VERTICAL
+        fun box(key: String, icon: String, title: String, accent: Int, value: String, onClick: () -> Unit): LinearLayout {
+            val b = LinearLayout(this)
+            b.orientation = LinearLayout.VERTICAL
+            b.setPadding(dp(12), dp(10), dp(12), dp(10))
+            b.background = shape(CARD, 14, accent, 2)
+            b.addView(tv("$icon  $title", 11f, accent, true))
+            val v = tv(value, 14f, TEXT, true)
+            v.maxLines = 2
+            boxVals[key] = v
+            b.addView(v)
+            b.setOnClickListener { onClick() }
+            return b
         }
-        chip("🎵 Music", "YouTube par mere liye achhe gaane lagao")
-        chip("📖 Study", "Mujhe padhai mein madad chahiye, mujhse sawal poochho")
-        chip("💬 Vent", "Mera dil halka karna hai, meri baat suno")
-        chip("☁ Mausam", "Aaj ka mausam batao")
-        val photo = pill("🖼 Photo") { pickPhoto() }
-        val pp = lp(0, WRAP, 1f)
-        pp.setMargins(dp(3), 0, dp(3), 0)
-        chips.addView(photo, pp)
-        content.addView(chips, lp(MATCH, WRAP))
-
-        val cards = LinearLayout(this)
-        cards.orientation = LinearLayout.HORIZONTAL
-        fun card(head: String, value: TextView, onClick: (() -> Unit)? = null) {
-            val box = LinearLayout(this)
-            box.orientation = LinearLayout.VERTICAL
-            box.setPadding(dp(12), dp(10), dp(12), dp(10))
-            box.background = shape(CARD, 16, LINE, 1)
-            box.addView(tv(head, 10f, MUTED, true))
-            box.addView(value)
-            if (onClick != null) box.setOnClickListener { onClick() }
-            val p = lp(0, WRAP, 1f)
-            p.setMargins(dp(3), dp(10), dp(3), 0)
-            cards.addView(box, p)
+        fun rowOf(a: LinearLayout, c: LinearLayout) {
+            val r = LinearLayout(this)
+            r.orientation = LinearLayout.HORIZONTAL
+            val p1 = lp(0, WRAP, 1f); p1.setMargins(dp(3), dp(6), dp(3), 0)
+            r.addView(a, p1)
+            r.addView(c, p1.let { lp(0, WRAP, 1f).also { q -> q.setMargins(dp(3), dp(6), dp(3), 0) } })
+            grid.addView(r, lp(MATCH, WRAP))
         }
-        card("AAJ", tv(SimpleDateFormat("d MMM, EEE", Locale.ENGLISH).format(Date()), 15f, TEXT, true))
-        card("MAUSAM", tv("Poochho", 15f, TEXT, true)) { sendTyped("Aaj ka mausam batao") }
+        val green = Color.parseColor("#34D399"); val amber = Color.parseColor("#FBBF24"); val blue = Color.parseColor("#60A5FA")
+        val orange = Color.parseColor("#F97316")
+        rowOf(box("memory", "🧠", "MEMORY", CYAN, "-") { show(2) },
+            box("skills", "⚡", "SKILLS", PINK, "Kya kar sakti hoon") { sendTyped("Tum kya kya kar sakti ho? Chhoti si list batao") })
+        rowOf(box("char", "🎭", "CHARACTER", orange, "-") { Persona.set(this, if (Persona.isRox) "noor" else "rox"); refreshHome() },
+            box("music", "🎵", "MUSIC", PINK, "Gaane lagao") { sendTyped("YouTube par mere liye achhe gaane lagao") })
+        rowOf(box("weather", "☁", "MAUSAM", blue, "...") { sendTyped("Aaj ka mausam batao") },
+            box("namaz", "🕌", "NAMAZ", green, "...") { sendTyped("Namaz ke waqt batao") })
+        rowOf(box("camera", "📷", "CAMERA", CYAN, "Dekhna shuru") { show(1) },
+            box("notif", "🔔", "NOTIFICATION", amber, "Kis ka msg?") { sendTyped("Kis ka msg aaya? Notifications parho") })
+        rowOf(box("photo", "🖼", "PHOTO", PINK, "Gallery se bhejo") { pickPhoto() },
+            box("battery", "🔋", "BATTERY", green, "-") { sendTyped("Mera battery aur phone ka haal batao") })
+        rowOf(box("study", "📖", "STUDY", blue, "Padhai mein madad") { sendTyped("Mujhe padhai mein madad chahiye, mujhse sawal poochho") },
+            box("vent", "💬", "DIL KI BAAT", orange, "Dil halka karo") { sendTyped("Mera dil halka karna hai, meri baat suno") })
+        rowOf(box("pass", "🔑", "PASSWORDS", amber, "Sirf phone mein") { show(3) },
+            box("settings", "⚙", "SETTINGS", CYAN, "Sab ijazaten") { show(3) })
+        content.addView(grid, lp(MATCH, WRAP))
         moodTv = tv("-", 15f, PINK, true)
-        card("MOOD", moodTv)
-        content.addView(cards, lp(MATCH, WRAP))
 
         logBox = LinearLayout(this)
         logBox.orientation = LinearLayout.VERTICAL
@@ -431,6 +423,52 @@ class MainActivity : Activity() {
         row.addView(send, sp)
         col.addView(row, lp(MATCH, WRAP))
         return col
+    }
+
+    private fun refreshBoxes() {
+        boxVals["memory"]?.text = Chat.snapshot().size.toString() + " baatein, " + prefs().getString("memories", "").orEmpty().lines().filter { it.isNotBlank() }.size + " yaadein"
+        boxVals["char"]?.text = if (Persona.isRox) "Rox (ladka) ⇄ Noor" else "Noor (ladki) ⇄ Rox"
+        try {
+            val b = registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            if (b != null) boxVals["battery"]?.text = b.getIntExtra("level", 0).toString() + "%" + (if (b.getIntExtra("plugged", 0) > 0) " charging" else "")
+        } catch (e: Exception) {
+        }
+        boxVals["notif"]?.text = NoorNotif.recent.size.toString() + " nayi"
+        if (System.currentTimeMillis() - lastInfo > 300000) {
+            lastInfo = System.currentTimeMillis()
+            Thread {
+                val w = Jarvis.weather(this) ?: "Net nahi"
+                val n = Jarvis.nextPrayer(this) ?: "Shehar check karein"
+                runOnUiThread {
+                    boxVals["weather"]?.text = Jarvis.city(this) + ": " + w
+                    boxVals["namaz"]?.text = n
+                }
+            }.start()
+        }
+    }
+
+    private var lastInfo = 0L
+
+    /** Chehre se boxes tak jaati lines. */
+    private class BusView(c: Context) : View(c) {
+        private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        override fun onDraw(cv: Canvas) {
+            val w = width.toFloat()
+            val h = height.toFloat()
+            p.style = Paint.Style.STROKE
+            p.strokeWidth = 3f
+            p.color = Color.parseColor("#22D3EE")
+            p.alpha = 160
+            cv.drawLine(w / 2, 0f, w / 2, h * 0.45f, p)
+            p.color = Color.parseColor("#E879F9")
+            cv.drawLine(w * 0.25f, h * 0.45f, w * 0.75f, h * 0.45f, p)
+            p.color = Color.parseColor("#34D399")
+            cv.drawLine(w * 0.25f, h * 0.45f, w * 0.25f, h, p)
+            cv.drawLine(w * 0.75f, h * 0.45f, w * 0.75f, h, p)
+            p.style = Paint.Style.FILL
+            p.color = Color.parseColor("#22D3EE")
+            cv.drawCircle(w / 2, h * 0.45f, 6f, p)
+        }
     }
 
     /** Mic dabakar bolo: Noor ab sirf tumhe sunegi (bina Hey Noor ke). */
@@ -561,7 +599,7 @@ class MainActivity : Activity() {
 
     private fun refreshHome() {
         val st = Chat.state
-        orb.state = st
+        holo.state = st
         val (label, color) = when (st) {
             "listening" -> Pair("LISTENING", CYAN)
             "thinking" -> Pair("THINKING", Color.parseColor("#FBBF24"))
@@ -584,7 +622,8 @@ class MainActivity : Activity() {
         greeting.text = "$hello, ${Persona.you}"
         titleTv.text = Persona.name + " ⇄"
         titleTv.setTextColor(if (Persona.isRox) Color.parseColor("#F97316") else CYAN)
-        faceView.setImageResource(if (Persona.isRox) R.drawable.rox_avatar else R.drawable.noor_avatar)
+        holo.setPersona(Persona.isRox)
+        refreshBoxes()
         detailTv.text = if (Chat.detail.isNotEmpty()) Chat.detail
         else if (NoorService.isRunning) (if (Persona.isRox) "Rox sun raha hai. \"Hey Rox\" ya \"Hey Noor\" bolein, ya likhein." else "Noor sun rahi hai. \"Hey Noor\" ya \"Hey Rox\" bolein, ya likhein.")
         else "Noor band hai. Neeche mic dabakar shuru karein."
@@ -696,98 +735,104 @@ class MainActivity : Activity() {
         statusTv.setPadding(0, dp(8), 0, dp(4))
         col.addView(statusTv, lp(MATCH, WRAP))
 
-        col.addView(tv("Server (Vercel ka link)", 13f, MUTED), lp(MATCH, WRAP))
+        var cur: LinearLayout = col
+        fun sec(title: String, accent: Int) {
+            val card = LinearLayout(this)
+            card.orientation = LinearLayout.VERTICAL
+            card.setPadding(dp(14), dp(12), dp(14), dp(12))
+            card.background = shape(CARD, 16, accent, 2)
+            card.addView(tv(title, 12f, accent, true))
+            val p = lp(MATCH, WRAP)
+            p.setMargins(0, dp(14), 0, 0)
+            col.addView(card, p)
+            cur = card
+        }
+        sec("🔌  CONNECTION", CYAN)
+        cur.addView(tv("Server (Vercel ka link)", 13f, MUTED), lp(MATCH, WRAP))
         urlEt = EditText(this)
         urlEt.setText(prefs().getString("url", DEFAULT_URL))
         urlEt.setTextColor(TEXT)
         urlEt.inputType = InputType.TYPE_TEXT_VARIATION_URI
-        col.addView(urlEt, lp(MATCH, WRAP))
+        cur.addView(urlEt, lp(MATCH, WRAP))
 
-        col.addView(tv("Password (jo Vercel mein APP_TOKEN hai)", 13f, MUTED), lp(MATCH, WRAP))
+        cur.addView(tv("Password (jo Vercel mein APP_TOKEN hai)", 13f, MUTED), lp(MATCH, WRAP))
         tokEt = EditText(this)
         tokEt.setText(prefs().getString("token", ""))
         tokEt.setTextColor(TEXT)
         tokEt.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-        col.addView(tokEt, lp(MATCH, WRAP))
+        cur.addView(tokEt, lp(MATCH, WRAP))
 
-        col.addView(button("1) Mic, camera, contacts aur notification allow karo") { askPermissions() })
-        col.addView(button("2) Dusri app ke upar dikhne do (apps kholne ke liye)") {
+        sec("🔐  IJAZATEN (pehli baar zaroor)", Color.parseColor("#34D399"))
+        cur.addView(button("1) Mic, camera, contacts aur notification allow karo") { askPermissions() })
+        cur.addView(button("2) Dusri app ke upar dikhne do (apps kholne ke liye)") {
             startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
         })
-        col.addView(button("3) Battery: background mein chalne do") {
+        cur.addView(button("3) Battery: background mein chalne do") {
             try {
                 startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
             } catch (e: Exception) {
                 Toast.makeText(this, "Settings se Battery > Noor > No restrictions chunein", Toast.LENGTH_LONG).show()
             }
         })
-        col.addView(button("4) App info (Autostart / Background allow karein)") {
+        cur.addView(button("4) App info (Autostart / Background allow karein)") {
             startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
         })
-        col.addView(button("5) WhatsApp message khud bhejne ke liye: Accessibility mein Noor ON karo") {
+        cur.addView(button("5) WhatsApp message khud bhejne ke liye: Accessibility mein Noor ON karo") {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         })
+        sec("⚙  BEHAVIOUR", PINK)
         proBtn = button("") {
             prefs().edit().putBoolean("proactive", !prefs().getBoolean("proactive", true)).apply()
             refreshSettings()
         }
-        col.addView(proBtn)
+        cur.addView(proBtn)
         pttBtn = button("") {
             prefs().edit().putBoolean("ptt", !prefs().getBoolean("ptt", false)).apply()
             refreshSettings()
         }
-        col.addView(pttBtn)
+        cur.addView(pttBtn)
         gateBtn = button("") {
             val cur = prefs().getInt("gate", 900)
             val nxt = when (cur) { 0 -> 600; 600 -> 900; 900 -> 1500; else -> 0 }
             prefs().edit().putInt("gate", nxt).apply()
             refreshSettings()
         }
-        col.addView(gateBtn)
+        cur.addView(gateBtn)
         autoBtn = button("") {
             prefs().edit().putBoolean("autostart", !prefs().getBoolean("autostart", true)).apply()
             refreshSettings()
         }
-        col.addView(autoBtn)
-        col.addView(TextView(this).apply {
-            text = "Passwords (sirf is phone mein, encrypted)"
-            setTextColor(Color.parseColor("#E6F1FF"))
-            textSize = 14f
-            setPadding(0, dp(14), 0, dp(4))
-        })
+        cur.addView(autoBtn)
+        sec("🔑  PASSWORDS (sirf is phone mein, encrypted)", Color.parseColor("#FBBF24"))
         val pl = EditText(this).apply { hint = "Naam (jaise instagram)"; setTextColor(Color.WHITE); setHintTextColor(Color.GRAY); setSingleLine(true) }
         val pv = EditText(this).apply { hint = "Password"; setTextColor(Color.WHITE); setHintTextColor(Color.GRAY); setSingleLine(true); inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD }
-        col.addView(pl)
-        col.addView(pv)
-        col.addView(button("Password save karo") {
+        cur.addView(pl)
+        cur.addView(pv)
+        cur.addView(button("Password save karo") {
             if (Secrets.put(this, pl.text.toString(), pv.text.toString())) {
                 Toast.makeText(this, "Save: " + pl.text.toString().trim(), Toast.LENGTH_SHORT).show()
                 pl.setText(""); pv.setText("")
             } else Toast.makeText(this, "Naam aur password dono likhein", Toast.LENGTH_SHORT).show()
         })
-        col.addView(button("Saved naam dekho / hatao") {
+        cur.addView(button("Saved naam dekho / hatao") {
             val ls = Secrets.labels(this)
             if (ls.isEmpty()) Toast.makeText(this, "Koi password nahi", Toast.LENGTH_SHORT).show()
             else android.app.AlertDialog.Builder(this).setTitle("Hatane ke liye dabayein")
                 .setItems(ls.toTypedArray()) { _, i -> Secrets.remove(this, ls[i]); Toast.makeText(this, "Hata diya", Toast.LENGTH_SHORT).show() }
                 .show()
         })
-        col.addView(TextView(this).apply {
-            text = "Shehar (namaz ke waqt ke liye)"
-            setTextColor(Color.parseColor("#E6F1FF"))
-            textSize = 14f
-            setPadding(0, dp(14), 0, dp(4))
-        })
+        sec("🕌  SHEHAR (namaz aur mausam ke liye)", Color.parseColor("#60A5FA"))
         val cityEt = EditText(this).apply { setText(prefs().getString("city", "Karachi")); setTextColor(Color.WHITE); setSingleLine(true) }
-        col.addView(cityEt)
-        col.addView(button("Shehar save karo") {
+        cur.addView(cityEt)
+        cur.addView(button("Shehar save karo") {
             prefs().edit().putString("city", cityEt.text.toString().trim().ifBlank { "Karachi" }).apply()
             Toast.makeText(this, "Shehar save", Toast.LENGTH_SHORT).show()
         })
-        col.addView(button("Notification parhne ki ijazat (Noor)") {
+        sec("🔔  EXTRA IJAZATEN", Color.parseColor("#F97316"))
+        cur.addView(button("Notification parhne ki ijazat (Noor)") {
             try { startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")) } catch (e: Exception) {}
         })
-        col.addView(button("Focus/Do Not Disturb ijazat") {
+        cur.addView(button("Focus/Do Not Disturb ijazat") {
             try { startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)) } catch (e: Exception) {}
         })
         col.addView(button("Save karo") {
