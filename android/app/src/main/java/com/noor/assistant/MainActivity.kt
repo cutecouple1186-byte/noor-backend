@@ -88,6 +88,8 @@ class MainActivity : Activity() {
     private lateinit var visionPage: FrameLayout
     private lateinit var memoryPage: View
     private lateinit var chatPage: View
+    private lateinit var toolsPage: View
+    private val navIdx = listOf(0, 2, 5, 3)
     private lateinit var chatScroll: ScrollView
     private lateinit var settingsPage: View
     private val navItems = ArrayList<TextView>()
@@ -188,6 +190,7 @@ class MainActivity : Activity() {
         pages.addView(visionPage, FrameLayout.LayoutParams(MATCH, MATCH))
         pages.addView(memoryPage, FrameLayout.LayoutParams(MATCH, MATCH))
         pages.addView(chatPage, FrameLayout.LayoutParams(MATCH, MATCH))
+        pages.addView(toolsPage, FrameLayout.LayoutParams(MATCH, MATCH))
         pages.addView(settingsPage, FrameLayout.LayoutParams(MATCH, MATCH))
 
         root.addView(pages, lp(MATCH, 0, 1f))
@@ -267,7 +270,7 @@ class MainActivity : Activity() {
         }
 
         bar.addView(item("⌂\nHome", 0), lp(0, WRAP, 1f))
-        bar.addView(item("◉\nVision", 1), lp(0, WRAP, 1f))
+        bar.addView(item("💬\nChat", 2), lp(0, WRAP, 1f))
 
         micBtn = tv("🎙", 26f, Color.WHITE)
         micBtn.gravity = Gravity.CENTER
@@ -276,7 +279,7 @@ class MainActivity : Activity() {
         mp.setMargins(dp(6), 0, dp(6), 0)
         bar.addView(micBtn, mp)
 
-        bar.addView(item("💬\nChat", 2), lp(0, WRAP, 1f))
+        bar.addView(item("▦\nTools", 5), lp(0, WRAP, 1f))
         bar.addView(item("⚙\nSettings", 3), lp(0, WRAP, 1f))
         return bar
     }
@@ -287,11 +290,12 @@ class MainActivity : Activity() {
         visionPage.visibility = if (idx == 1) View.VISIBLE else View.GONE
         memoryPage.visibility = if (idx == 4) View.VISIBLE else View.GONE
         chatPage.visibility = if (idx == 2) View.VISIBLE else View.GONE
+        toolsPage.visibility = if (idx == 5) View.VISIBLE else View.GONE
         settingsPage.visibility = if (idx == 3) View.VISIBLE else View.GONE
-        for (i in navItems.indices) navItems[i].setTextColor(if (i == idx) CYAN else MUTED)
+        for (i in navItems.indices) navItems[i].setTextColor(if (navIdx[i] == idx) CYAN else MUTED)
         if (idx == 1) openVision()
         if (idx == 4) refreshMemory()
-        if (idx == 2) refreshHome()
+        if (idx == 2 || idx == 5) refreshHome()
         if (idx == 3) refreshSettings()
     }
 
@@ -352,13 +356,13 @@ class MainActivity : Activity() {
             b.setOnClickListener { onClick() }
             return b
         }
-        fun rowOf(a: LinearLayout, c: LinearLayout) {
+        fun rowOf(a: LinearLayout, c: LinearLayout, tgt: LinearLayout = grid) {
             val r = LinearLayout(this)
             r.orientation = LinearLayout.HORIZONTAL
             val p1 = lp(0, WRAP, 1f); p1.setMargins(dp(3), dp(6), dp(3), 0)
             r.addView(a, p1)
             r.addView(c, p1.let { lp(0, WRAP, 1f).also { q -> q.setMargins(dp(3), dp(6), dp(3), 0) } })
-            grid.addView(r, lp(MATCH, WRAP))
+            tgt.addView(r, lp(MATCH, WRAP))
         }
         val green = Color.parseColor("#34D399"); val amber = Color.parseColor("#FBBF24"); val blue = Color.parseColor("#60A5FA")
         val orange = Color.parseColor("#F97316")
@@ -374,26 +378,25 @@ class MainActivity : Activity() {
             box("study", "📖", "STUDY", blue, "Padhai mein madad") { sendTyped("Mujhe padhai mein madad chahiye, mujhse sawal poochho") })
         rowOf(box("pass", "🔑", "PASSWORDS", amber, "Sirf phone mein") { show(3) },
             box("vent", "💬", "DIL KI BAAT", orange, "Dil halka karo") { sendTyped("Mera dil halka karna hai, meri baat suno") })
-        // ---- video jaisa: left boxes + lines + hologram panel ----
-        val node = NodePanel(this)
-        node.orientation = LinearLayout.HORIZONTAL
-        val leftCol = LinearLayout(this)
-        leftCol.orientation = LinearLayout.VERTICAL
-        fun nb(key: String, icon: String, title: String, accent: Int, onClick: () -> Unit) {
+        // ---- Home par sirf chehra + likhne ki jagah; baaki sab "Tools" tab mein ----
+        val top = LinearLayout(this)
+        top.orientation = LinearLayout.VERTICAL
+        fun nb(key: String, icon: String, title: String, accent: Int, onClick: () -> Unit): LinearLayout {
             val b = box(key, icon, title, accent, "", onClick)
-            b.setPadding(dp(8), dp(9), dp(8), dp(9))
-            val q = lp(MATCH, 0, 1f)
-            q.setMargins(0, dp(4), 0, dp(4))
-            leftCol.addView(b, q)
+            b.setPadding(dp(10), dp(9), dp(10), dp(9))
+            return b
         }
-        nb("memory", "🧠", "MEMORY", CYAN) { show(4) }
-        nb("skills", "⚡", "SKILLS", Color.parseColor("#34D399")) { sendTyped("Tum kya kya kar sakti ho? Chhoti si list batao") }
-        nb("char", "🎭", "CHARACTER", Color.parseColor("#EF4444")) { Persona.set(this, if (Persona.isRox) "noor" else "rox"); refreshHome() }
-        nb("settings", "⚙", "SETTING", Color.parseColor("#94A3B8")) { show(3) }
-        node.addView(leftCol, lp(dp(118), dp(300)))
+        rowOf(nb("memory", "🧠", "MEMORY", CYAN) { show(4) },
+            nb("skills", "⚡", "SKILLS", Color.parseColor("#34D399")) { sendTyped("Tum kya kya kar sakti ho? Chhoti si list batao") }, top)
+        rowOf(nb("char", "🎭", "CHARACTER", Color.parseColor("#EF4444")) { Persona.set(this, if (Persona.isRox) "noor" else "rox"); refreshHome() },
+            nb("settings", "⚙", "SETTING", Color.parseColor("#94A3B8")) { show(3) }, top)
+        content.addView(top, lp(MATCH, WRAP))
+        content.addView(BusView(this), lp(MATCH, dp(26)))
+        content.addView(grid, lp(MATCH, WRAP))
+
         val panel = LinearLayout(this)
         panel.orientation = LinearLayout.VERTICAL
-        panel.background = shape(Color.parseColor("#05121A"), 16, Color.parseColor("#0F6B78"), 2)
+        panel.background = shape(Color.parseColor("#05121A"), 20, Color.parseColor("#0F6B78"), 2)
         panel.setPadding(dp(6), dp(6), dp(6), dp(8))
         panel.addView(stage, lp(MATCH, 0, 1f))
         termBtn = tv("TERMINATE", 11f, Color.parseColor("#EF4444"), true)
@@ -403,14 +406,9 @@ class MainActivity : Activity() {
         termBtn.background = shape(Color.parseColor("#1A0A0F"), 8, Color.parseColor("#EF4444"), 1)
         termBtn.setOnClickListener { toggleService() }
         panel.addView(termBtn, lp(MATCH, WRAP))
-        val pl = lp(0, dp(300), 1f)
-        pl.leftMargin = dp(26)
-        node.addView(panel, pl)
-        node.leftCol = leftCol
-        node.panel = panel
-        content.addView(node, lp(MATCH, dp(300)))
-        content.addView(BusView(this), lp(MATCH, dp(26)))
-        content.addView(grid, lp(MATCH, WRAP))
+        val pm = lp(MATCH, 0, 1f)
+        pm.setMargins(dp(14), dp(10), dp(14), dp(6))
+        col.addView(panel, pm)
         moodTv = tv("-", 15f, PINK, true)
 
         logBox = LinearLayout(this)
@@ -418,7 +416,8 @@ class MainActivity : Activity() {
         logBox.setPadding(0, dp(12), 0, 0)
 
         homeScroll.addView(content)
-        col.addView(homeScroll, lp(MATCH, 0, 1f))
+        homeScroll.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.parseColor("#1E0B3A"), Color.parseColor("#0A1630"), BG))
+        toolsPage = homeScroll
 
         val row = LinearLayout(this)
         row.orientation = LinearLayout.HORIZONTAL
