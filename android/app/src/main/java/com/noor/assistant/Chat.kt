@@ -27,6 +27,12 @@ object Chat {
     }
 
     @Synchronized
+    fun clear() {
+        items.clear()
+        ping()
+    }
+
+    @Synchronized
     fun snapshot(): List<Pair<String, String>> = ArrayList(items)
 
     fun set(newState: String, newDetail: String? = null) {

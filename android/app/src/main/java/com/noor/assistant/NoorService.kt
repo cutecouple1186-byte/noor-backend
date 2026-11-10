@@ -722,15 +722,22 @@ class NoorService : Service() {
     }
 
     private var lookDepth = 0
+    private var pendingGoal = ""
+    private var pendingAt = 0L
 
     /** Screen padhkar agla kadam LLM se poochho (YouTube search, subscribe, follow waghera). */
     private fun scheduleLook(goal: String, delay: Long) {
-        if (lookDepth >= 8) {
+        if (lookDepth >= 40) {
             lookDepth = 0
-            say("Itna hi kar saki Rizwan. Baaki aap dekh lein ya dobara bolein.")
+            pendingGoal = ""
+            say("Itne kadam ho gaye Rizwan, kaam poora nahi hua. Batao to main wahin se aage badhoon?")
             return
         }
         lookDepth++
+        if (goal.isNotBlank()) {
+            pendingGoal = goal
+            pendingAt = System.currentTimeMillis()
+        }
         busy = true
         setState("thinking")
         main.postDelayed({
@@ -740,14 +747,19 @@ class NoorService : Service() {
                 lookDepth = 0
                 say("Screen padh nahi saki. Settings mein Accessibility mein Noor ON karein.")
             } else {
-                ask("(SCREEN DEKHA) Maqsad: $goal. Screen par ye likha hai ([ ] mein wale dabne wale hain): $scr. Agla sirf ek kadam batao: intent screen (action tap_text / type / enter / scroll_down / back) ke saath look true aur goal wahi, reply khali. Agar maqsad poora ho gaya ho to intent none aur ek chhota jawab.")
+                ask("(SCREEN DEKHA) Maqsad: $goal. Screen par ye likha hai ([ ] mein wale dabne wale hain): $scr. Agla sirf ek kadam batao: intent screen (action tap_text / tap / type / enter / scroll_down / scroll_up / back) ke saath look true aur goal wahi, reply khali. Kabhi manual karne ko mat kaho, khud karo. Agar kuch zaroori jaankari chahiye (naya naam, kaun si photo, haan/na) to Rizwan se ek chhota sawal poocho (intent none, slots done false). Paise, delete, post, kisi ko message ya account login se pehle sawal poocho. Maqsad poora ho jaye to intent none, slots done true aur ek chhota jawab.")
             }
         }, delay)
     }
 
     private fun ask(textIn: String, pic: String = "") {
         var text = textIn
-        if (!text.startsWith("(SCREEN")) lookDepth = 0
+        if (!text.startsWith("(SCREEN")) {
+            lookDepth = 0
+            if (pendingGoal.isNotBlank() && System.currentTimeMillis() - pendingAt < 300000 && !text.startsWith("(Noor khud")) {
+                text = "(Adhoora kaam: $pendingGoal. Ye uska jawab ya naya hukm hai, agar jawab hai to kaam aage badhao: screen intent look true ke saath) " + text
+            }
+        }
         val rem = activeReminder
         if (rem != null && !text.startsWith("(Noor khud")) {
             activeReminder = null
@@ -790,6 +802,7 @@ class NoorService : Service() {
         val reply = j.optString("reply")
         val intent = j.optString("intent", "none")
         val slots = j.optJSONObject("slots") ?: JSONObject()
+        if (intent == "none" && slots.optBoolean("done", !reply.trim().endsWith("?"))) pendingGoal = ""
         history.add(Pair("user", userText))
         history.add(Pair("assistant", reply))
         while (history.size > 12) history.removeAt(0)

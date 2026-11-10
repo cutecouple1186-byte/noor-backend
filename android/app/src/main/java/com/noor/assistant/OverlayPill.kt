@@ -46,6 +46,7 @@ class OverlayPill(private val ctx: Context) {
     private var root: LinearLayout? = null
     private var label: TextView? = null
     private var bars: Bars? = null
+    private var glow: GlowView? = null
 
     private fun dp(v: Int) = (v * ctx.resources.displayMetrics.density).toInt()
 
@@ -97,6 +98,23 @@ class OverlayPill(private val ctx: Context) {
             root = box
             label = t
             bars = b
+            if (ctx.getSharedPreferences("noor", Context.MODE_PRIVATE).getBoolean("glow", true)) {
+                try {
+                    val g = GlowView(ctx, true)
+                    val gp = WindowManager.LayoutParams(
+                        WindowManager.LayoutParams.MATCH_PARENT,
+                        WindowManager.LayoutParams.MATCH_PARENT,
+                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                        PixelFormat.TRANSLUCENT
+                    )
+                    wm.addView(g, gp)
+                    glow = g
+                } catch (e: Exception) {
+                    glow = null
+                }
+            }
         } catch (e: Exception) {
             root = null
         }
@@ -118,6 +136,11 @@ class OverlayPill(private val ctx: Context) {
     }
 
     fun hide() {
+        try {
+            glow?.let { wm.removeView(it) }
+        } catch (e: Exception) {
+        }
+        glow = null
         try {
             root?.let { wm.removeView(it) }
         } catch (e: Exception) {

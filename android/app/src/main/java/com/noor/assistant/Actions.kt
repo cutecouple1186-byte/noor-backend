@@ -237,6 +237,14 @@ object Actions {
     fun execute(ctx: Context, intent: String, s: JSONObject): String? {
         when (intent) {
             "notifications" -> return NoorNotif.summary()
+            "google" -> {
+                val q = s.optString("q").ifBlank { s.optString("text") }
+                val i = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=" + Uri.encode(q)))
+                i.setPackage("com.android.chrome")
+                if (!launch(ctx, i)) {
+                    if (!launch(ctx, Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=" + Uri.encode(q))))) return "Search nahi khul saki."
+                }
+            }
             "find_phone" -> return Jarvis.findPhone(ctx)
             "focus" -> return Jarvis.focus(ctx, s.optBoolean("on", true))
             "gallery" -> return Jarvis.gallery(ctx, s.optString("when", "latest"))

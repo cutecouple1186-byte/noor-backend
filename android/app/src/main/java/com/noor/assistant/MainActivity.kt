@@ -190,7 +190,7 @@ class MainActivity : Activity() {
         root.addView(buildNav(), lp(MATCH, WRAP))
         val top = FrameLayout(this)
         top.addView(root, FrameLayout.LayoutParams(MATCH, MATCH))
-        top.addView(EdgeGlow(this), FrameLayout.LayoutParams(MATCH, MATCH))
+        top.addView(GlowView(this), FrameLayout.LayoutParams(MATCH, MATCH))
         setContentView(top)
         show(0)
 
@@ -356,6 +356,11 @@ class MainActivity : Activity() {
         }
         val green = Color.parseColor("#34D399"); val amber = Color.parseColor("#FBBF24"); val blue = Color.parseColor("#60A5FA")
         val orange = Color.parseColor("#F97316")
+        val chatBox = box("chat", "💬", "BAAT-CHEET (sab text yahan)", CYAN, "...") { showChatDialog() }
+        boxVals["chat"]?.maxLines = 4
+        val cp = lp(MATCH, WRAP)
+        cp.setMargins(dp(3), dp(6), dp(3), 0)
+        grid.addView(chatBox, cp)
         rowOf(box("music", "🎵", "MUSIC", PINK, "Gaane lagao") { sendTyped("YouTube par mere liye achhe gaane lagao") },
             box("weather", "☁", "MAUSAM", blue, "...") { sendTyped("Aaj ka mausam batao") })
         rowOf(box("namaz", "🕌", "NAMAZ", green, "...") { sendTyped("Namaz ke waqt batao") },
@@ -410,7 +415,6 @@ class MainActivity : Activity() {
         logBox = LinearLayout(this)
         logBox.orientation = LinearLayout.VERTICAL
         logBox.setPadding(0, dp(12), 0, 0)
-        content.addView(logBox, lp(MATCH, WRAP))
 
         homeScroll.addView(content)
         col.addView(homeScroll, lp(MATCH, 0, 1f))
@@ -463,6 +467,18 @@ class MainActivity : Activity() {
         return col
     }
 
+    private fun showChatDialog() {
+        val all = Chat.snapshot()
+        val sv = ScrollView(this)
+        val tvv = tv(if (all.isEmpty()) "Abhi koi baat nahi." else all.joinToString("\n\n") { (if (it.first == "user") "Aap: " else Persona.name + ": ") + it.second }, 14f, TEXT)
+        tvv.setPadding(dp(16), dp(12), dp(16), dp(12))
+        sv.addView(tvv)
+        android.app.AlertDialog.Builder(this).setTitle("Baat-cheet").setView(sv)
+            .setPositiveButton("Theek hai", null)
+            .setNeutralButton("Saaf karo") { _, _ -> Chat.clear(); refreshHome() }
+            .show()
+    }
+
     private fun refreshBoxes() {
         boxVals["memory"]?.text = Chat.snapshot().size.toString() + " baatein, " + prefs().getString("memories", "").orEmpty().lines().filter { it.isNotBlank() }.size + " yaadein"
         boxVals["skills"]?.text = "40+ kaam"
@@ -488,40 +504,6 @@ class MainActivity : Activity() {
     }
 
     private var lastInfo = 0L
-
-    /** Phone ke kinaaron par chalti rangeen (RGB) roshni. */
-    private class EdgeGlow(c: Context) : View(c) {
-        private val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        private var t = 0f
-        private val cols = intArrayOf(
-            Color.parseColor("#22D3EE"), Color.parseColor("#818CF8"), Color.parseColor("#E879F9"),
-            Color.parseColor("#FB7185"), Color.parseColor("#FBBF24"), Color.parseColor("#34D399"), Color.parseColor("#22D3EE")
-        )
-        init {
-            isClickable = false
-            isFocusable = false
-        }
-        override fun onDraw(cv: Canvas) {
-            t += 1.6f
-            val d = resources.displayMetrics.density
-            val inset = 2f * d
-            val rr = android.graphics.RectF(inset, inset, width - inset, height - inset)
-            val sh = android.graphics.SweepGradient(width / 2f, height / 2f, cols, null)
-            val m = android.graphics.Matrix()
-            m.postRotate(t, width / 2f, height / 2f)
-            sh.setLocalMatrix(m)
-            p.shader = sh
-            p.style = Paint.Style.STROKE
-            val boost = if (Chat.state == "speaking") 1.6f else 1f
-            for ((wd, al) in listOf(Pair(14f, 28), Pair(8f, 70), Pair(3.5f, 235))) {
-                p.strokeWidth = wd * d / 2f * boost
-                p.alpha = al
-                cv.drawRoundRect(rr, 26f * d, 26f * d, p)
-            }
-            postInvalidateOnAnimation()
-        }
-        override fun onTouchEvent(e: android.view.MotionEvent): Boolean = false
-    }
 
     /** Header ke neeche chalti rainbow patti. */
     private class RainbowLine(c: Context) : View(c) {
@@ -764,13 +746,9 @@ class MainActivity : Activity() {
             logBox.removeAllViews()
             rendered = 0
         }
-        var added = false
-        for (i in rendered until all.size) {
-            addBubble(all[i].first, all[i].second)
-            added = true
-        }
         rendered = all.size
-        if (added) homeScroll.post { homeScroll.fullScroll(View.FOCUS_DOWN) }
+        val lastAssistant = all.lastOrNull { it.first != "user" }?.second ?: "Abhi koi baat nahi. Mic dabakar bolein."
+        boxVals["chat"]?.text = lastAssistant.take(240)
     }
 
     private fun addBubble(who: String, text: String) {
