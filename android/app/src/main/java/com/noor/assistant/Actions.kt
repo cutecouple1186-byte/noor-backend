@@ -237,6 +237,52 @@ object Actions {
     fun execute(ctx: Context, intent: String, s: JSONObject): String? {
         when (intent) {
             "notifications" -> return NoorNotif.summary()
+            "quick_setting" -> {
+                val raw = s.optString("name").lowercase()
+                val names = when {
+                    raw.contains("wifi") || raw.contains("wi-fi") || raw.contains("internet") -> "Wi-Fi|WiFi|Internet"
+                    raw.contains("bluetooth") -> "Bluetooth"
+                    raw.contains("airplane") || raw.contains("flight") || raw.contains("jahaz") -> "Airplane|Flight"
+                    raw.contains("hotspot") -> "Hotspot|Personal hotspot"
+                    raw.contains("torch") || raw.contains("flash") -> "Flashlight|Torch"
+                    raw.contains("disturb") || raw.contains("dnd") -> "Do Not Disturb|Don't disturb"
+                    raw.contains("screenshot") -> "Screenshot"
+                    raw.contains("record") -> "Screen Recorder|Screen record"
+                    raw.contains("battery") || raw.contains("saver") -> "Battery Saver|Power saving"
+                    raw.contains("dark") -> "Dark Theme|Dark mode"
+                    raw.contains("rotat") || raw.contains("portrait") -> "Portrait Lock|Auto-rotate|Auto rotate"
+                    raw.contains("location") || raw.contains("gps") -> "Location"
+                    raw.contains("eye") -> "Eye Care"
+                    raw.contains("cast") -> "Cast"
+                    raw.contains("nfc") -> "NFC"
+                    raw.contains("ring") || raw.contains("silent") || raw.contains("sound") -> "Ring|Sound|Silent|Vibrate"
+                    raw.contains("data") -> "Mobile data|Jazz|Ufone"
+                    else -> s.optString("name")
+                }
+                val st = if (s.has("on")) (if (s.optBoolean("on")) "#on" else "#off") else ""
+                val r = NoorAccess.screen("quick", names + st, 0, 0)
+                if (r != null) return r
+            }
+            "system_setting" -> {
+                if (!Settings.System.canWrite(ctx)) {
+                    try { ctx.startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:" + ctx.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e: Exception) {}
+                    return "Settings badalne ki ijazat dein (Noor ko ON karein), phir dobara bolein."
+                }
+                val v = s.optInt("value", -1)
+                try {
+                    when (s.optString("key")) {
+                        "brightness" -> {
+                            Settings.System.putInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE, 0)
+                            Settings.System.putInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS, (v.coerceIn(0, 100) * 255 / 100))
+                        }
+                        "timeout" -> Settings.System.putInt(ctx.contentResolver, Settings.System.SCREEN_OFF_TIMEOUT, v.coerceIn(10, 1800) * 1000)
+                        "rotation" -> Settings.System.putInt(ctx.contentResolver, Settings.System.ACCELEROMETER_ROTATION, if (s.optBoolean("on", true)) 1 else 0)
+                        else -> return "Ye setting mujhe samajh nahi aayi."
+                    }
+                } catch (e: Exception) {
+                    return "Setting badal nahi saki."
+                }
+            }
             "google" -> {
                 val q = s.optString("q").ifBlank { s.optString("text") }
                 val i = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=" + Uri.encode(q)))

@@ -91,11 +91,60 @@ class NoorAccess : AccessibilityService() {
             "swipe_right" -> swipe(w * 0.2f, h * 0.5f, w * 0.8f, h * 0.5f, 250)
             "tap" -> swipe(w * x.coerceIn(0, 100) / 100f, h * y.coerceIn(0, 100) / 100f, w * x.coerceIn(0, 100) / 100f + 1f, h * y.coerceIn(0, 100) / 100f + 1f, 60)
             "tap_text" -> return tapText(text)
+            "quick" -> return quickTile(text)
             "type" -> return typeText(text)
             "enter" -> return pressEnter()
             else -> return "Ye screen ka kaam mujhe samajh nahi aaya."
         }
         return if (ok) null else "Screen ka kaam nahi ho saka."
+    }
+
+    private val mainH = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /** text = "naam1|naam2|...#on" ya "#off" ya khali. Quick Settings panel khol kar tile dabata hai. */
+    private fun quickTile(spec: String): String? {
+        val names = spec.substringBefore("#").split("|").map { it.trim() }.filter { it.isNotEmpty() }
+        val want = when (spec.substringAfter("#", "")) { "on" -> true; "off" -> false; else -> null }
+        if (names.isEmpty()) return "Kaun si setting?"
+        performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
+        mainH.postDelayed({ tryTile(names, want, 0) }, 1000)
+        return null
+    }
+
+    private fun tryTile(names: List<String>, want: Boolean?, attempt: Int) {
+        val root = rootInActiveWindow
+        var done = false
+        if (root != null) {
+            for (nm in names) {
+                val l = root.findAccessibilityNodeInfosByText(nm) ?: continue
+                var n: AccessibilityNodeInfo? = l.firstOrNull() ?: continue
+                var hop = 0
+                while (n != null && !n.isClickable && hop < 5) { n = n.parent; hop++ }
+                if (n == null) continue
+                var state: Boolean? = null
+                try {
+                    val sd = if (android.os.Build.VERSION.SDK_INT >= 30) n.stateDescription?.toString()?.lowercase() ?: "" else ""
+                    val cd = n.contentDescription?.toString()?.lowercase() ?: ""
+                    val all = sd + " " + cd
+                    state = if (n.isChecked) true else if (sd.contains("off") || cd.contains("off")) false
+                    else if (all.contains(" on") || all.startsWith("on")) true else null
+                } catch (e: Exception) {
+                }
+                if (want == null || state == null || state != want) n.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                done = true
+                break
+            }
+        }
+        if (done) {
+            mainH.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 700)
+        } else if (attempt < 2) {
+            // panel ke neeche wale tiles ke liye upar swipe
+            val dm = resources.displayMetrics
+            swipe(dm.widthPixels * 0.5f, dm.heightPixels * 0.75f, dm.widthPixels * 0.5f, dm.heightPixels * 0.35f, 250)
+            mainH.postDelayed({ tryTile(names, want, attempt + 1) }, 900)
+        } else {
+            performGlobalAction(GLOBAL_ACTION_HOME)
+        }
     }
 
     private fun tapText(text: String): String? {

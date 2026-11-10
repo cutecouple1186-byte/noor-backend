@@ -978,6 +978,9 @@ class MainActivity : Activity() {
         cur.addView(button("Notification parhne ki ijazat (Noor)") {
             try { startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")) } catch (e: Exception) {}
         })
+        cur.addView(button("Brightness/Settings badalne ki ijazat") {
+            try { startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:$packageName"))) } catch (e: Exception) {}
+        })
         cur.addView(button("Focus/Do Not Disturb ijazat") {
             try { startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)) } catch (e: Exception) {}
         })
