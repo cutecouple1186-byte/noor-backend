@@ -927,11 +927,11 @@ class MainActivity : Activity() {
         })
         cur.addView(button("Hont thora upar") {
             val k = "mouthY_" + (if (Persona.isRox) "rox" else "noor")
-            prefs().edit().putFloat(k, prefs().getFloat(k, 0.68f) - 0.012f).apply(); holo.reload()
+            prefs().edit().putFloat(k, prefs().getFloat(k, if (Persona.isRox) 0.797f else 0.814f) - 0.012f).apply(); holo.reload()
         })
         cur.addView(button("Hont thora neeche") {
             val k = "mouthY_" + (if (Persona.isRox) "rox" else "noor")
-            prefs().edit().putFloat(k, prefs().getFloat(k, 0.68f) + 0.012f).apply(); holo.reload()
+            prefs().edit().putFloat(k, prefs().getFloat(k, if (Persona.isRox) 0.797f else 0.814f) + 0.012f).apply(); holo.reload()
         })
         cur.addView(button("Cartoon chehra wapas") {
             java.io.File(filesDir, "face_noor.png").delete(); java.io.File(filesDir, "face_rox.png").delete(); holo.reload()

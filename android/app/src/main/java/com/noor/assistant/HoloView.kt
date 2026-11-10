@@ -22,6 +22,7 @@ class HoloView(private val ctx: Context) : View(ctx) {
     private var rox = false
     private var built = false
     private var real = false
+    private var art = false
 
     private var px = FloatArray(0)
     private var py = FloatArray(0)
@@ -61,19 +62,26 @@ class HoloView(private val ctx: Context) : View(ctx) {
             bmp = try { BitmapFactory.decodeFile(f.absolutePath) } catch (e: Exception) { null }
             if (bmp != null) real = true
         }
-        if (bmp == null) bmp = BitmapFactory.decodeResource(resources, if (rox) R.drawable.holo_rox else R.drawable.holo_noor)
-        val n = if (real) 176 else 140
+        art = false
+        if (bmp == null) {
+            bmp = BitmapFactory.decodeResource(resources, if (rox) R.drawable.holo_rox else R.drawable.holo_noor)
+            art = true
+        }
+        val n = 176
         // square center-crop
         val side = min(bmp!!.width, bmp.height)
         val crop = Bitmap.createBitmap(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side)
         val sc = Bitmap.createScaledBitmap(crop, n, n, true)
         val prefs = ctx.getSharedPreferences("noor", Context.MODE_PRIVATE)
+        val key = "mouthY_" + (if (rox) "rox" else "noor")
         if (real) {
-            mouthY = prefs.getFloat("mouthY_" + (if (rox) "rox" else "noor"), 0.68f)
+            mouthY = prefs.getFloat(key, 0.68f)
+            mouthX = 0.5f
             mouthW = 0.075f
         } else {
-            mouthY = 0.654f
-            mouthW = 0.095f
+            mouthY = prefs.getFloat(key, if (rox) 0.797f else 0.814f)
+            mouthX = if (rox) 0.539f else 0.562f
+            mouthW = if (rox) 0.05f else 0.07f
         }
         val lum = FloatArray(n * n)
         val al = FloatArray(n * n)
@@ -92,14 +100,14 @@ class HoloView(private val ctx: Context) : View(ctx) {
             val gx = lum[i + 1] - lum[i - 1]
             val gy = lum[i + n] - lum[i - n]
             val edge = sqrt(gx * gx + gy * gy)
-            var w = 0.2f + 0.8f * (if (real) lum[i] * lum[i] * 1.4f else lum[i])
+            var w = 0.2f + 0.8f * ((lum[i] * lum[i] * 1.4f).coerceAtMost(1f))
             if (edge > 0.12f) w = 1f
             val fx = (x.toFloat() / n - 0.5f) / 0.47f
             val fy = (y.toFloat() / n - 0.48f) / 0.52f
             if (real) w *= (1f - (fx * fx + fy * fy).coerceIn(0f, 1f).let { it * it })
             val yy = y.toFloat() / n
-            if (yy > 0.8f) w *= (1f - (yy - 0.8f) * 4f).coerceAtLeast(0f)
-            if (rnd.nextFloat() > w * (if (real) 0.9f else 1f)) continue
+            if (!art && yy > 0.8f) w *= (1f - (yy - 0.8f) * 4f).coerceAtLeast(0f)
+            if (rnd.nextFloat() > w) continue
             lx.add((x + rnd.nextFloat()) / n)
             ly.add((y + rnd.nextFloat()) / n)
             lb.add(if (edge > 0.12f || lum[i] > 0.75f) 2 else if (lum[i] > 0.35f) 1 else 0)
