@@ -188,7 +188,10 @@ class MainActivity : Activity() {
 
         root.addView(pages, lp(MATCH, 0, 1f))
         root.addView(buildNav(), lp(MATCH, WRAP))
-        setContentView(root)
+        val top = FrameLayout(this)
+        top.addView(root, FrameLayout.LayoutParams(MATCH, MATCH))
+        top.addView(EdgeGlow(this), FrameLayout.LayoutParams(MATCH, MATCH))
+        setContentView(top)
         show(0)
 
         // Phone on hone par BootReceiver is screen ko kholta hai; yahan se Noor shuru karke screen peeche kar dete hain.
@@ -291,6 +294,7 @@ class MainActivity : Activity() {
         val col = LinearLayout(this)
         col.orientation = LinearLayout.VERTICAL
 
+        col.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.parseColor("#1E0B3A"), Color.parseColor("#0A1630"), BG))
         val header = LinearLayout(this)
         header.orientation = LinearLayout.HORIZONTAL
         header.gravity = Gravity.CENTER_VERTICAL
@@ -306,6 +310,7 @@ class MainActivity : Activity() {
         statePill.setPadding(dp(12), dp(5), dp(12), dp(5))
         header.addView(statePill, lp(WRAP, WRAP))
         col.addView(header, lp(MATCH, WRAP))
+        col.addView(RainbowLine(this), lp(MATCH, dp(3)))
 
         homeScroll = ScrollView(this)
         val content = LinearLayout(this)
@@ -483,6 +488,58 @@ class MainActivity : Activity() {
     }
 
     private var lastInfo = 0L
+
+    /** Phone ke kinaaron par chalti rangeen (RGB) roshni. */
+    private class EdgeGlow(c: Context) : View(c) {
+        private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        private var t = 0f
+        private val cols = intArrayOf(
+            Color.parseColor("#22D3EE"), Color.parseColor("#818CF8"), Color.parseColor("#E879F9"),
+            Color.parseColor("#FB7185"), Color.parseColor("#FBBF24"), Color.parseColor("#34D399"), Color.parseColor("#22D3EE")
+        )
+        init {
+            isClickable = false
+            isFocusable = false
+        }
+        override fun onDraw(cv: Canvas) {
+            t += 1.6f
+            val d = resources.displayMetrics.density
+            val inset = 2f * d
+            val rr = android.graphics.RectF(inset, inset, width - inset, height - inset)
+            val sh = android.graphics.SweepGradient(width / 2f, height / 2f, cols, null)
+            val m = android.graphics.Matrix()
+            m.postRotate(t, width / 2f, height / 2f)
+            sh.setLocalMatrix(m)
+            p.shader = sh
+            p.style = Paint.Style.STROKE
+            val boost = if (Chat.state == "speaking") 1.6f else 1f
+            for ((wd, al) in listOf(Pair(14f, 28), Pair(8f, 70), Pair(3.5f, 235))) {
+                p.strokeWidth = wd * d / 2f * boost
+                p.alpha = al
+                cv.drawRoundRect(rr, 26f * d, 26f * d, p)
+            }
+            postInvalidateOnAnimation()
+        }
+        override fun onTouchEvent(e: android.view.MotionEvent): Boolean = false
+    }
+
+    /** Header ke neeche chalti rainbow patti. */
+    private class RainbowLine(c: Context) : View(c) {
+        private val p = Paint()
+        private var t = 0f
+        private val cols = intArrayOf(
+            Color.parseColor("#22D3EE"), Color.parseColor("#E879F9"), Color.parseColor("#FBBF24"),
+            Color.parseColor("#34D399"), Color.parseColor("#22D3EE")
+        )
+        override fun onDraw(cv: Canvas) {
+            t += 6f
+            val w = width.toFloat()
+            val off = t % w
+            p.shader = android.graphics.LinearGradient(off - w, 0f, off + w, 0f, cols, null, android.graphics.Shader.TileMode.MIRROR)
+            cv.drawRect(0f, 0f, w, height.toFloat(), p)
+            postInvalidateOnAnimation()
+        }
+    }
 
     /** Left boxes se hologram panel tak rang-birangi lines (video jaisa). */
     private class NodePanel(c: Context) : LinearLayout(c) {
@@ -932,6 +989,9 @@ class MainActivity : Activity() {
         cur.addView(button("Hont thora neeche") {
             val k = "mouthY_" + (if (Persona.isRox) "rox" else "noor")
             prefs().edit().putFloat(k, prefs().getFloat(k, if (Persona.isRox) 0.797f else 0.814f) + 0.012f).apply(); holo.reload()
+        })
+        cur.addView(button("Rangeen tasveer ⇄ Dots hologram") {
+            prefs().edit().putBoolean("dots", !prefs().getBoolean("dots", false)).apply()
         })
         cur.addView(button("Cartoon chehra wapas") {
             java.io.File(filesDir, "face_noor.png").delete(); java.io.File(filesDir, "face_rox.png").delete(); holo.reload()

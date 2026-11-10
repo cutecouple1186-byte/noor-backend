@@ -23,6 +23,12 @@ class HoloView(private val ctx: Context) : View(ctx) {
     private var built = false
     private var real = false
     private var art = false
+    private var artBmp: Bitmap? = null
+    private val clip = android.graphics.Path()
+    private val rainbow = intArrayOf(
+        Color.parseColor("#22D3EE"), Color.parseColor("#818CF8"), Color.parseColor("#E879F9"),
+        Color.parseColor("#FB7185"), Color.parseColor("#FBBF24"), Color.parseColor("#34D399"), Color.parseColor("#22D3EE")
+    )
 
     private var px = FloatArray(0)
     private var py = FloatArray(0)
@@ -66,6 +72,7 @@ class HoloView(private val ctx: Context) : View(ctx) {
         if (bmp == null) {
             bmp = BitmapFactory.decodeResource(resources, if (rox) R.drawable.holo_rox else R.drawable.holo_noor)
             art = true
+            artBmp = bmp
         }
         val n = 176
         // square center-crop
@@ -127,10 +134,77 @@ class HoloView(private val ctx: Context) : View(ctx) {
         built = true
     }
 
+    private fun prefsDots() = ctx.getSharedPreferences("noor", Context.MODE_PRIVATE).getBoolean("dots", false)
+
+    /** Rangeen tasveer: gol frame, chalti rainbow roshni, scan lines aur bolte waqt hont. */
+    private fun drawArt(c: Canvas) {
+        val bm = artBmp ?: return
+        val speaking = state == "speaking"
+        val s = min(width, height) * 0.92f
+        val cx = width / 2f
+        val cy = height / 2f
+        val bob = if (speaking) sin(t * 4f) * 2.5f else sin(t) * 1.2f
+        val r = s / 2f
+        val side = min(bm.width, bm.height)
+        val src = android.graphics.Rect((bm.width - side) / 2, (bm.height - side) / 2, (bm.width + side) / 2, (bm.height + side) / 2)
+        c.save()
+        clip.reset()
+        clip.addCircle(cx, cy + bob, r, android.graphics.Path.Direction.CW)
+        c.clipPath(clip)
+        val dst = RectF(cx - r, cy - r + bob, cx + r, cy + r + bob)
+        p.style = Paint.Style.FILL
+        p.shader = null
+        p.alpha = 255
+        c.drawBitmap(bm, src, dst, p)
+        p.color = Color.WHITE
+        p.alpha = 16
+        var y = dst.top + ((t * 14f) % 8f)
+        while (y < dst.bottom) {
+            c.drawRect(dst.left, y, dst.right, y + 1.5f, p)
+            y += 8f
+        }
+        val target = if (speaking) (abs(sin(t * 7.3f)) * 0.6f + abs(sin(t * 3.1f + 1.3f)) * 0.4f) else 0f
+        mouth += (target - mouth) * 0.4f
+        if (mouth > 0.1f) {
+            val mx = dst.left + s * mouthX
+            val my = dst.top + s * mouthY
+            val w = s * mouthW * (0.8f + 0.25f * mouth)
+            val h = s * (0.006f + 0.045f * mouth)
+            val o = RectF(mx - w, my - h, mx + w, my + h)
+            p.alpha = 255
+            p.color = Color.parseColor("#C0566D")
+            c.drawOval(RectF(o.left - 2f, o.top - 2f, o.right + 2f, o.bottom + 2f), p)
+            p.color = Color.parseColor("#4A1220")
+            c.drawOval(o, p)
+            if (mouth > 0.45f) {
+                p.color = Color.parseColor("#F5E6E6")
+                c.drawRect(mx - w * 0.55f, o.top + h * 0.15f, mx + w * 0.55f, o.top + h * 0.5f, p)
+            }
+        }
+        c.restore()
+        val sh = android.graphics.SweepGradient(cx, cy, rainbow, null)
+        val m = android.graphics.Matrix()
+        m.postRotate(t * 40f, cx, cy)
+        sh.setLocalMatrix(m)
+        p.shader = sh
+        p.style = Paint.Style.STROKE
+        for ((wd, al) in listOf(Pair(16f, 40), Pair(9f, 90), Pair(if (speaking) 6f else 4f, 255))) {
+            p.strokeWidth = wd
+            p.alpha = al
+            c.drawCircle(cx, cy + bob, r + 2f, p)
+        }
+        p.shader = null
+    }
+
     override fun onDraw(c: Canvas) {
         super.onDraw(c)
         if (!built) build()
         t += 0.04f
+        if (art && artBmp != null && !prefsDots()) {
+            drawArt(c)
+            postInvalidateOnAnimation()
+            return
+        }
         if (form < 1f) form = (form + 0.018f).coerceAtMost(1f)
         val e = 1f - (1f - form) * (1f - form) * (1f - form)
         val s = min(width, height) * 0.94f * (1f + 0.008f * sin(t))
