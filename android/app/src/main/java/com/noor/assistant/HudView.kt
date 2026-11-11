@@ -45,20 +45,44 @@ class HudView(ctx: Context) : View(ctx) {
 
     private fun d(v: Float) = v * resources.displayMetrics.density
 
+    private val rLogo = RectF()
+    private val rMic = RectF()
+    private val rTitle = RectF()
+    private val rWx = RectF()
+    private val rChk = RectF()
+    private val rBub = RectF()
+    private val rProc = RectF()
+    private val rMini = RectF()
+    private val rGauge = RectF()
+    private val rSmart = RectF()
+    var bubble = ""
+    var liveOn = false
+    var logo: Bitmap? = null
+
     override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
-        val s = min(0.42f * w, 0.33f * h)
-        val cx = 0.5f * w
-        val ccy = 0.085f * h + 0.185f * h
-        mainRect.set(cx - s / 2, ccy - s / 2, cx + s / 2, ccy + s / 2)
-        val sw = 0.27f * w
-        sideRect.set(0.70f * w, 0.1f * h, 0.70f * w + sw, 0.1f * h + sw)
-        rGlobe.set(0.71f * w, sideRect.bottom + d(8f), 0.96f * w, sideRect.bottom + d(8f) + 0.25f * w)
-        rNews.set(0.03f * w, 0.625f * h, 0.97f * w, 0.70f * h)
-        rHolo.set(0.05f * w, 0.715f * h, 0.95f * w, 0.915f * h)
-        rKey.set(0.86f * w, 0.925f * h, 0.97f * w, 0.925f * h + 0.11f * w)
-        hexR = 0.044f * w
-        val x0 = 0.545f * w + hexR
-        for (i in 0..3) hexC[i].set(x0 + i * (hexR * 2.15f), 0.535f * h)
+        val lr = 0.095f * w
+        rLogo.set(0.12f * w - lr, 0.065f * h - lr, 0.12f * w + lr, 0.065f * h + lr)
+        val ss = lr * 1.7f
+        sideRect.set(rLogo.centerX() - ss / 2, rLogo.centerY() - ss / 2, rLogo.centerX() + ss / 2, rLogo.centerY() + ss / 2)
+        rTitle.set(0.27f * w, 0.012f * h, 0.70f * w, 0.105f * h)
+        rWx.set(0.72f * w, 0.012f * h, 0.975f * w, 0.165f * h)
+        rChk.set(0.015f * w, 0.125f * h, 0.26f * w, 0.31f * h)
+        rBub.set(0.30f * w, 0.125f * h, 0.70f * w, 0.205f * h)
+        val s = 0.46f * w
+        val ccy = 0.35f * h
+        mainRect.set(0.5f * w - s / 2, ccy - s / 2, 0.5f * w + s / 2, ccy + s / 2)
+        rProc.set(0.74f * w, 0.235f * h, 0.975f * w, 0.40f * h)
+        rMini.set(0.76f * w, 0.415f * h, 0.975f * w, 0.50f * h)
+        rGlobe.set(0.01f * w, 0.38f * h, 0.26f * w, 0.38f * h + 0.25f * w)
+        rGauge.set(0.02f * w, 0.545f * h, 0.53f * w, 0.665f * h)
+        rSmart.set(0.55f * w, 0.545f * h, 0.98f * w, 0.665f * h)
+        rNews.set(0.02f * w, 0.68f * h, 0.98f * w, 0.77f * h)
+        rMic.set(0.5f * w - 0.09f * w, 0.865f * h - 0.09f * w, 0.5f * w + 0.09f * w, 0.865f * h + 0.09f * w)
+        rKey.set(0.03f * w, 0.84f * h, 0.03f * w + 0.1f * w, 0.84f * h + 0.08f * w)
+        rHolo.set(0.15f * w, 0.215f * h, 0.85f * w, 0.52f * h)
+        hexR = 0.04f * w
+        val x0 = rSmart.left + 0.06f * w + hexR * 0.6f
+        for (i in 0..3) hexC[i].set(x0 + i * (hexR * 2.2f), rSmart.top + 0.058f * h)
         onRects(mainRect, sideRect)
     }
 
@@ -127,45 +151,63 @@ class HudView(ctx: Context) : View(ctx) {
             p.alpha = (60 + 120 * abs(sin(t + s[0] * 9f))).toInt()
             c.drawCircle(s[0] * w, y * h, d(0.8f + s[2]), p)
         }
-        // header
-        val lc = PointF(0.09f * w, 0.045f * h)
+        // header: logo ring (Noor/Rox side), title, mausam
         p.style = Paint.Style.STROKE
-        p.strokeWidth = d(2f)
+        p.strokeWidth = d(2.2f)
         p.color = cy
         p.alpha = 255
-        c.drawCircle(lc.x, lc.y, d(15f), p)
+        c.drawCircle(rLogo.centerX(), rLogo.centerY(), rLogo.width() / 2f, p)
         p.color = bl
-        c.save(); c.rotate(t * 90f, lc.x, lc.y); c.drawArc(RectF(lc.x - d(11f), lc.y - d(11f), lc.x + d(11f), lc.y + d(11f)), 0f, 100f, false, p); c.restore()
-        p.style = Paint.Style.FILL
-        p.color = cy
-        c.drawCircle(lc.x, lc.y, d(4f), p)
-        txt(c, "NOOR AI", 0.17f * w, 0.058f * h, 19f, Color.WHITE)
+        c.save(); c.rotate(t * 70f, rLogo.centerX(), rLogo.centerY())
+        c.drawArc(RectF(rLogo.left + d(4f), rLogo.top + d(4f), rLogo.right - d(4f), rLogo.bottom - d(4f)), 0f, 120f, false, p); c.restore()
+        panel(c, rTitle, "")
+        txt(c, "NOOR AI", rTitle.centerX(), rTitle.top + d(30f), 24f, Color.WHITE, Paint.Align.CENTER)
+        txt(c, "Your Personal AI Assistant", rTitle.centerX(), rTitle.top + d(46f), 9.5f, Color.parseColor("#BAE6FD"), Paint.Align.CENTER)
+        panel(c, rWx, "")
+        p.style = Paint.Style.FILL; p.color = Color.parseColor("#FBBF24"); p.alpha = 255
+        c.drawCircle(rWx.centerX() - d(8f), rWx.top + d(18f), d(8f), p)
+        p.color = Color.WHITE; c.drawCircle(rWx.centerX() + d(5f), rWx.top + d(23f), d(9f), p)
+        txt(c, weather, rWx.centerX(), rWx.top + d(46f), 10f, Color.WHITE, Paint.Align.CENTER)
         val tm = SimpleDateFormat("hh:mm a", Locale.ENGLISH).format(Date())
-        val dt = SimpleDateFormat("EEE, d MMM", Locale.ENGLISH).format(Date())
-        val wr = RectF(0.66f * w, 0.012f * h, 0.97f * w, 0.082f * h)
-        panel(c, wr, "")
-        txt(c, tm, wr.left + d(8f), wr.top + d(19f), 13f, Color.WHITE)
-        txt(c, dt, wr.left + d(8f), wr.top + d(31f), 8f, cy)
-        txt(c, weather, wr.right - d(8f), wr.top + d(19f), 10f, Color.WHITE, Paint.Align.RIGHT)
+        val dt = SimpleDateFormat("EEE, d MMM yyyy", Locale.ENGLISH).format(Date())
+        txt(c, tm, rWx.centerX(), rWx.bottom - d(24f), 19f, Color.WHITE, Paint.Align.CENTER)
+        txt(c, dt, rWx.centerX(), rWx.bottom - d(8f), 8.5f, Color.parseColor("#BAE6FD"), Paint.Align.CENTER)
         // status checklist
-        val sx = 0.04f * w
-        val act = when (state) { "listening" -> 4; "thinking" -> ((t * 2.5f).toInt() % 3); "speaking" -> 3; "idle" -> 4; else -> -1 }
+        panel(c, rChk, "")
+        val act = if (state == "thinking") ((t * 2.5f).toInt() % 5) else 5
         for (i in steps.indices) {
-            val y = 0.14f * h + i * 0.045f * h
-            val on = if (state == "off") false else if (state == "thinking") i <= act else i <= 4
+            val y = rChk.top + d(22f) + i * (rChk.height() - d(26f)) / 5f
+            val on = state != "off" && i <= act
             p.style = Paint.Style.STROKE
-            p.strokeWidth = d(1.4f)
-            p.color = if (on) cy else dim
+            p.strokeWidth = d(1.6f)
+            p.color = if (on) Color.parseColor("#2DD4BF") else dim
             p.alpha = 255
-            c.drawCircle(sx + d(6f), y - d(3f), d(6f), p)
+            c.drawCircle(rChk.left + d(14f), y - d(3f), d(7f), p)
             if (on) {
-                val ck = Path(); ck.moveTo(sx + d(3f), y - d(3f)); ck.lineTo(sx + d(5.5f), y); ck.lineTo(sx + d(9.5f), y - d(6f))
+                val ck = Path(); ck.moveTo(rChk.left + d(10.5f), y - d(3f)); ck.lineTo(rChk.left + d(13f), y); ck.lineTo(rChk.left + d(18f), y - d(7f))
                 c.drawPath(ck, p)
             }
-            txt(c, steps[i], sx + d(18f), y, 9.5f, if (on) Color.WHITE else Color.parseColor("#5B7C99"))
+            txt(c, steps[i] + if (i < 4) "..." else "!", rChk.left + d(27f), y, 9.5f, if (on) Color.WHITE else Color.parseColor("#5B7C99"))
         }
-        // hologram aadhaar (main)
-        val mc = PointF(mainRect.centerX(), mainRect.bottom + d(6f))
+        // bubble
+        panel(c, rBub, "")
+        val bt = bubble.ifBlank { "Hello Boss,\nHow can I help you today?" }
+        tp.textSize = d(10.5f)
+        var ly = rBub.top + d(20f)
+        var rest = bt.replace("\n", " ")
+        for (ln in 0..1) {
+            if (rest.isBlank()) break
+            val n = tp.breakText(rest, true, rBub.width() - d(16f), null)
+            var cut = n
+            if (n < rest.length) { val sp = rest.lastIndexOf(' ', n); if (sp > 0) cut = sp }
+            var seg = rest.substring(0, cut).trim()
+            rest = rest.substring(cut).trim()
+            if (ln == 1 && rest.isNotEmpty()) seg = seg.dropLast(1) + "…"
+            txt(c, seg, rBub.left + d(10f), ly, 10.5f, Color.WHITE)
+            ly += d(17f)
+        }
+        // character aadhaar
+        val mc = PointF(mainRect.centerX(), mainRect.bottom + d(4f))
         for (i in 0..2) {
             val k = 1f + i * 0.28f
             p.style = Paint.Style.STROKE
@@ -180,24 +222,38 @@ class HudView(ctx: Context) : View(ctx) {
         beam.lineTo(mc.x + mainRect.width() * 0.32f, mainRect.top + mainRect.height() * 0.6f); beam.lineTo(mc.x + mainRect.width() * 0.5f, mc.y); beam.close()
         c.drawPath(beam, p)
         p.shader = null
-        // side card frame
-        panel(c, RectF(sideRect.left - d(3f), sideRect.top - d(3f), sideRect.right + d(3f), sideRect.bottom + d(15f)), "")
-        txt(c, if (rox) "NOOR" else "ROX", sideRect.centerX(), sideRect.bottom + d(11f), 8.5f, cy, Paint.Align.CENTER)
+        // hologram (jo bhi Noor banaye) beech mein
+        drawHoloArea(c)
+        // right: Processing + mini hologram card
+        panel(c, rProc, "")
+        p.style = Paint.Style.FILL; p.color = cy
+        for (i in 0..5) { p.alpha = 90; c.drawRect(rProc.left + d(6f), rProc.top + d(8f) + i * d(7f), rProc.left + d(6f) + d(30f + ((i * 37 + (t * 3).toInt()) % 30)), rProc.top + d(11f) + i * d(7f), p) }
+        for (i in 0..2) {
+            val yy = rProc.top + d(62f) + i * d(22f)
+            p.style = Paint.Style.STROKE; p.strokeWidth = d(1.6f); p.color = cy; p.alpha = 255
+            c.save(); c.rotate(t * 220f + i * 40f, rProc.left + d(12f), yy - d(3f))
+            c.drawArc(RectF(rProc.left + d(5f), yy - d(10f), rProc.left + d(19f), yy + d(4f)), 0f, 250f, false, p); c.restore()
+            txt(c, "Processing...", rProc.left + d(26f), yy, 9f, Color.WHITE)
+        }
+        panel(c, rMini, "")
+        p.style = Paint.Style.STROKE; p.strokeWidth = d(1.4f); p.color = cy; p.alpha = 255
+        c.drawCircle(rMini.centerX(), rMini.centerY() - d(2f), rMini.height() * 0.33f, p)
+        c.drawLine(rMini.centerX(), rMini.centerY() - d(14f), rMini.centerX(), rMini.centerY() + d(10f), p)
+        c.drawOval(RectF(rMini.centerX() - d(16f), rMini.bottom - d(14f), rMini.centerX() + d(16f), rMini.bottom - d(6f)), p)
         // globe
         drawGlobe(c, rGlobe)
         // gauges
-        val gp = RectF(0.03f * w, 0.455f * h, 0.52f * w, 0.60f * h)
-        panel(c, gp, "SYSTEM STATUS")
-        val gr = 0.045f * w
-        gauge(c, gp.left + gp.width() * 0.17f, gp.centerY() + d(2f), gr, ram, "RAM")
-        gauge(c, gp.left + gp.width() * 0.5f, gp.centerY() + d(2f), gr, batt, "BATTERY")
-        gauge(c, gp.left + gp.width() * 0.83f, gp.centerY() + d(2f), gr, disk, "STORAGE")
+        panel(c, rGauge, "System Status")
+        val gr = 0.04f * w
+        gauge(c, rGauge.left + rGauge.width() * 0.17f, rGauge.centerY() + d(5f), gr, ram, "RAM")
+        gauge(c, rGauge.left + rGauge.width() * 0.5f, rGauge.centerY() + d(5f), gr, disk, "Storage")
+        gauge(c, rGauge.left + rGauge.width() * 0.83f, rGauge.centerY() + d(5f), gr, batt, "Battery")
         // smart control
-        val sp = RectF(0.535f * w, 0.455f * h, 0.97f * w, 0.60f * h)
-        panel(c, sp, "SMART CONTROL")
+        panel(c, rSmart, "Smart Control")
+        val names = listOf("WiFi", "Bluetooth", "Flashlight", "Airplane")
         for (i in 0..3) {
             val key = hexes[i].first
-            val hot = pressed == key && now - pressAt < 400 || (key == "torch" && torchOn)
+            val hot = (pressed == key && now - pressAt < 400) || (key == "torch" && torchOn)
             p.style = Paint.Style.FILL
             p.color = if (hot) cy else Color.parseColor("#0B3A5C")
             p.alpha = if (hot) 200 else 255
@@ -206,11 +262,11 @@ class HudView(ctx: Context) : View(ctx) {
             p.strokeWidth = d(1.5f)
             p.color = cy
             hex(c, hexC[i].x, hexC[i].y, hexR)
-            txt(c, hexes[i].second, hexC[i].x, hexC[i].y + hexR + d(12f), 7.5f, Color.WHITE, Paint.Align.CENTER)
+            txt(c, names[i], hexC[i].x, hexC[i].y + hexR + d(12f), 6.5f, Color.WHITE, Paint.Align.CENTER)
             drawIcon(c, key, hexC[i].x, hexC[i].y, hexR * 0.5f, if (hot) Color.parseColor("#04121C") else cy)
         }
         // news
-        panel(c, rNews, "NEWS FEED")
+        panel(c, rNews, "News Feed")
         var line = news.ifBlank { "Khabrein load ho rahi hain..." }
         tp.textSize = d(10f)
         val maxW = rNews.width() - d(16f)
@@ -218,18 +274,38 @@ class HudView(ctx: Context) : View(ctx) {
             val n = tp.breakText(line, true, maxW - d(12f), null)
             line = line.take(n) + "…"
         }
-        txt(c, line, rNews.left + d(8f), rNews.bottom - d(9f), 10f, Color.WHITE)
-        // hologram jagah
-        drawHoloArea(c)
-        // waveform + keyboard
-        drawWave(c, 0.06f * w, 0.945f * h, 0.78f * w)
+        txt(c, line, rNews.left + d(8f), rNews.centerY() + d(6f), 10f, Color.WHITE)
+        txt(c, "Read More →", rNews.left + d(8f), rNews.bottom - d(8f), 9f, cy)
+        // waveform + mic (LIVE)
+        drawWave(c, 0.17f * w, 0.865f * h, 0.27f * w)
+        drawWave(c, 0.56f * w, 0.865f * h, 0.40f * w)
+        drawMic(c)
         p.style = Paint.Style.STROKE
         p.strokeWidth = d(1.4f)
         p.color = cy
         p.alpha = 255
         c.drawRoundRect(rKey, d(6f), d(6f), p)
         for (r in 0..1) for (k in 0..3) c.drawCircle(rKey.left + rKey.width() * (0.2f + 0.2f * k), rKey.top + rKey.height() * (0.35f + 0.3f * r), d(0.9f), p)
+        // logo (Noor/Rox) niche se banaya HoloView hai; yahan sirf label
         postInvalidateOnAnimation()
+    }
+
+    private fun drawMic(c: Canvas) {
+        val cx = rMic.centerX(); val cyy = rMic.centerY(); val r = rMic.width() / 2f
+        val pulse = if (liveOn) 1f + 0.08f * sin(t * 6f) else 1f
+        p.style = Paint.Style.FILL
+        p.shader = RadialGradient(cx, cyy, r * 1.6f * pulse, Color.parseColor("#5522D3EE"), Color.TRANSPARENT, Shader.TileMode.CLAMP)
+        c.drawCircle(cx, cyy, r * 1.6f * pulse, p)
+        p.shader = null
+        p.color = Color.parseColor("#031A33"); p.alpha = 255
+        c.drawCircle(cx, cyy, r, p)
+        p.style = Paint.Style.STROKE
+        for ((wd, al) in listOf(Pair(6f, 90), Pair(2.5f, 255))) { p.strokeWidth = d(wd); p.color = if (liveOn) Color.parseColor("#34D399") else cy; p.alpha = al; c.drawCircle(cx, cyy, r * pulse, p) }
+        p.strokeWidth = d(2f); p.color = Color.WHITE; p.alpha = 255
+        c.drawRoundRect(RectF(cx - r * 0.2f, cyy - r * 0.5f, cx + r * 0.2f, cyy + r * 0.15f), r * 0.2f, r * 0.2f, p)
+        c.drawArc(RectF(cx - r * 0.38f, cyy - r * 0.3f, cx + r * 0.38f, cyy + r * 0.38f), 0f, 180f, false, p)
+        c.drawLine(cx, cyy + r * 0.38f, cx, cyy + r * 0.58f, p)
+        c.drawLine(cx - r * 0.2f, cyy + r * 0.58f, cx + r * 0.2f, cyy + r * 0.58f, p)
     }
 
     private fun drawIcon(c: Canvas, key: String, x: Float, y: Float, r: Float, col: Int) {
@@ -273,25 +349,17 @@ class HudView(ctx: Context) : View(ctx) {
         val r = rHolo
         val b = Hud.holo
         val cx = r.centerX()
-        // dais
-        p.style = Paint.Style.STROKE
-        p.strokeWidth = d(1.6f)
-        for (i in 0..2) {
-            p.color = if (i == 1) bl else cy
-            p.alpha = 220 - i * 60
-            val k = 1f + i * 0.25f
-            c.drawOval(RectF(cx - r.width() * 0.3f * k, r.bottom - d(10f) * k, cx + r.width() * 0.3f * k, r.bottom + d(10f) * k), p)
-        }
         if (Hud.busy) {
             c.save(); c.rotate(t * 200f, cx, r.centerY())
+            p.style = Paint.Style.STROKE
             p.color = cy; p.alpha = 255; p.strokeWidth = d(3f)
             c.drawArc(RectF(cx - d(24f), r.centerY() - d(24f), cx + d(24f), r.centerY() + d(24f)), 0f, 250f, false, p)
             c.restore()
         }
         if (b != null) {
-            val side = min(r.width(), r.height()) * 0.95f
-            val sway = 0.86f + 0.14f * cos(t * 1.4f)
-            val dst = RectF(cx - side / 2f * sway, r.bottom - side - d(4f), cx + side / 2f * sway, r.bottom - d(4f))
+            val side = min(r.width(), r.height() * 1.05f)
+            val sway = 0.9f + 0.1f * cos(t * 1.4f)
+            val dst = RectF(cx - side / 2f * sway, r.bottom - side, cx + side / 2f * sway, r.bottom)
             p.style = Paint.Style.FILL
             p.xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
             p.alpha = (225 + 25 * sin(t * 9f)).toInt()
@@ -331,8 +399,9 @@ class HudView(ctx: Context) : View(ctx) {
         }
         if (rKey.contains(x, y)) { onAction("keyboard"); return true }
         if (rNews.contains(x, y)) { onAction("news"); return true }
-        if (sideRect.contains(x, y)) { onAction("swap"); return true }
+        if (sideRect.contains(x, y) || rLogo.contains(x, y)) { onAction("swap"); return true }
         if (mainRect.contains(x, y)) { onAction("main"); return true }
+        if (rMic.contains(x, y)) { onAction("live"); return true }
         if (rHolo.contains(x, y) && Hud.holo != null) { onAction("holo_clear"); return true }
         return true
     }

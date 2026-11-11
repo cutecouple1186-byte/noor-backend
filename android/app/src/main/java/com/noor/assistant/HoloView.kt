@@ -26,8 +26,7 @@ class HoloView(private val ctx: Context) : View(ctx) {
     private var artBmp: Bitmap? = null
     private val clip = android.graphics.Path()
     private val rainbow = intArrayOf(
-        Color.parseColor("#22D3EE"), Color.parseColor("#818CF8"), Color.parseColor("#E879F9"),
-        Color.parseColor("#FB7185"), Color.parseColor("#FBBF24"), Color.parseColor("#34D399"), Color.parseColor("#22D3EE")
+        Color.parseColor("#22D3EE"), Color.parseColor("#2563EB"), Color.parseColor("#7DD3FC"), Color.parseColor("#1D4ED8"), Color.parseColor("#22D3EE")
     )
 
     private var px = FloatArray(0)
@@ -80,15 +79,15 @@ class HoloView(private val ctx: Context) : View(ctx) {
         val crop = Bitmap.createBitmap(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side)
         val sc = Bitmap.createScaledBitmap(crop, n, n, true)
         val prefs = ctx.getSharedPreferences("noor", Context.MODE_PRIVATE)
-        val key = "mouthY_" + (if (rox) "rox" else "noor")
+        val key = "mouthY2_" + (if (rox) "rox" else "noor")
         if (real) {
             mouthY = prefs.getFloat(key, 0.68f)
             mouthX = 0.5f
             mouthW = 0.075f
         } else {
-            mouthY = prefs.getFloat(key, if (rox) 0.797f else 0.814f)
-            mouthX = if (rox) 0.539f else 0.562f
-            mouthW = if (rox) 0.05f else 0.07f
+            mouthY = prefs.getFloat(key, if (rox) 0.482f else 0.814f)
+            mouthX = if (rox) 0.417f else 0.562f
+            mouthW = if (rox) 0.055f else 0.07f
         }
         val lum = FloatArray(n * n)
         val al = FloatArray(n * n)

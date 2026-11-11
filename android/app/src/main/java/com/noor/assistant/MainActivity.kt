@@ -202,7 +202,6 @@ class MainActivity : Activity() {
         root.addView(buildNav(), lp(MATCH, WRAP))
         val top = FrameLayout(this)
         top.addView(root, FrameLayout.LayoutParams(MATCH, MATCH))
-        top.addView(GlowView(this), FrameLayout.LayoutParams(MATCH, MATCH))
         setContentView(top)
         show(0)
 
@@ -237,6 +236,7 @@ class MainActivity : Activity() {
         instance = this
         resumed = true
         hud.removeCallbacks(tick); hud.post(tick)
+        Hud.listener = { runOnUiThread { refreshHome() } }
         Chat.listener = { refreshHome(); refreshLiveBtn() }
         refreshHome()
         refreshSettings()
@@ -263,7 +263,7 @@ class MainActivity : Activity() {
         val bar = LinearLayout(this)
         bar.orientation = LinearLayout.HORIZONTAL
         bar.gravity = Gravity.CENTER_VERTICAL
-        bar.setBackgroundColor(Color.parseColor("#0A1220"))
+        bar.setBackgroundColor(Color.parseColor("#020B1A"))
         bar.setPadding(0, dp(6), 0, dp(8))
 
         fun item(label: String, idx: Int): TextView {
@@ -283,7 +283,6 @@ class MainActivity : Activity() {
         micBtn.setOnClickListener { toggleService() }
         val mp = lp(dp(64), dp(64))
         mp.setMargins(dp(6), 0, dp(6), 0)
-        bar.addView(micBtn, mp)
 
         bar.addView(item("⚙\nSettings", 3), lp(0, WRAP, 1f))
         val more = item("⋯\nMore", -1)
@@ -314,7 +313,7 @@ class MainActivity : Activity() {
         val col = LinearLayout(this)
         col.orientation = LinearLayout.VERTICAL
 
-        col.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.parseColor("#1E0B3A"), Color.parseColor("#0A1630"), BG))
+        col.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.parseColor("#031A33"), Color.parseColor("#0A1630"), BG))
         val header = LinearLayout(this)
         header.orientation = LinearLayout.HORIZONTAL
         header.gravity = Gravity.CENTER_VERTICAL
@@ -421,7 +420,7 @@ class MainActivity : Activity() {
         logBox.setPadding(0, dp(12), 0, 0)
 
         homeScroll.addView(content)
-        homeScroll.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.parseColor("#1E0B3A"), Color.parseColor("#0A1630"), BG))
+        homeScroll.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.parseColor("#031A33"), Color.parseColor("#0A1630"), BG))
         toolsPage = homeScroll
 
         val row = LinearLayout(this)
@@ -541,6 +540,7 @@ class MainActivity : Activity() {
             "news" -> if (newsLink.isNotBlank()) try { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(newsLink))) } catch (e: Exception) {}
             "swap" -> { Persona.set(this, if (Persona.isRox) "noor" else "rox"); refreshHome() }
             "main" -> talkNow()
+            "live" -> toggleLive()
             "holo_clear" -> Hud.put(null)
         }
     }
@@ -567,7 +567,7 @@ class MainActivity : Activity() {
     private fun buildChat(): View {
         val col = LinearLayout(this)
         col.orientation = LinearLayout.VERTICAL
-        col.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.parseColor("#1E0B3A"), Color.parseColor("#0A1630"), BG))
+        col.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.parseColor("#031A33"), Color.parseColor("#0A1630"), BG))
         val head = LinearLayout(this)
         head.orientation = LinearLayout.HORIZONTAL
         head.gravity = Gravity.CENTER_VERTICAL
@@ -651,19 +651,8 @@ class MainActivity : Activity() {
 
     /** Header ke neeche chalti rainbow patti. */
     private class RainbowLine(c: Context) : View(c) {
-        private val p = Paint()
-        private var t = 0f
-        private val cols = intArrayOf(
-            Color.parseColor("#22D3EE"), Color.parseColor("#E879F9"), Color.parseColor("#FBBF24"),
-            Color.parseColor("#34D399"), Color.parseColor("#22D3EE")
-        )
         override fun onDraw(cv: Canvas) {
-            t += 6f
-            val w = width.toFloat()
-            val off = t % w
-            p.shader = android.graphics.LinearGradient(off - w, 0f, off + w, 0f, cols, null, android.graphics.Shader.TileMode.MIRROR)
-            cv.drawRect(0f, 0f, w, height.toFloat(), p)
-            postInvalidateOnAnimation()
+            cv.drawColor(Color.parseColor("#0E7490"))
         }
     }
 
@@ -862,6 +851,13 @@ class MainActivity : Activity() {
         }
         statePill.text = label
         hud.state = st
+        hud.liveOn = NoorService.liveActive
+        val lastN = Chat.snapshot().lastOrNull { it.first != "me" }?.second
+        hud.bubble = if ((st == "speaking" || st == "thinking") && !lastN.isNullOrBlank()) lastN else "Hello ${if (Persona.isRox) "Boss" else Persona.you},\nHow can I help you today?"
+        for (v in listOf(holoRox, holoNoor)) {
+            val front = (v === holo)
+            v.visibility = if (front && Hud.holo != null) View.INVISIBLE else View.VISIBLE
+        }
         hud.rox = Persona.isRox
         holoRox.state = if (Persona.isRox) st else "off"
         holoNoor.state = if (!Persona.isRox) st else "off"
@@ -1114,12 +1110,12 @@ class MainActivity : Activity() {
             makeFace("Rox", "Photorealistic centered front-facing head-and-shoulders portrait of an original fictional young man with thin round glasses and short messy black hair, wearing a dark blazer over a white shirt, relaxed neutral expression with lips gently closed, looking straight at the camera, soft even studio light, plain dark background. Not a real person.")
         })
         cur.addView(button("Hont thora upar") {
-            val k = "mouthY_" + (if (Persona.isRox) "rox" else "noor")
-            prefs().edit().putFloat(k, prefs().getFloat(k, if (Persona.isRox) 0.797f else 0.814f) - 0.012f).apply(); holoRox.reload(); holoNoor.reload()
+            val k = "mouthY2_" + (if (Persona.isRox) "rox" else "noor")
+            prefs().edit().putFloat(k, prefs().getFloat(k, if (Persona.isRox) 0.482f else 0.814f) - 0.012f).apply(); holoRox.reload(); holoNoor.reload()
         })
         cur.addView(button("Hont thora neeche") {
-            val k = "mouthY_" + (if (Persona.isRox) "rox" else "noor")
-            prefs().edit().putFloat(k, prefs().getFloat(k, if (Persona.isRox) 0.797f else 0.814f) + 0.012f).apply(); holoRox.reload(); holoNoor.reload()
+            val k = "mouthY2_" + (if (Persona.isRox) "rox" else "noor")
+            prefs().edit().putFloat(k, prefs().getFloat(k, if (Persona.isRox) 0.482f else 0.814f) + 0.012f).apply(); holoRox.reload(); holoNoor.reload()
         })
         cur.addView(button("Rangeen tasveer ⇄ Dots hologram") {
             prefs().edit().putBoolean("dots", !prefs().getBoolean("dots", false)).apply()

@@ -98,7 +98,7 @@ class OverlayPill(private val ctx: Context) {
             root = box
             label = t
             bars = b
-            if (ctx.getSharedPreferences("noor", Context.MODE_PRIVATE).getBoolean("glow", true)) {
+            if (ctx.getSharedPreferences("noor", Context.MODE_PRIVATE).getBoolean("glow", false)) {
                 try {
                     val g = GlowView(ctx, true)
                     val gp = WindowManager.LayoutParams(
