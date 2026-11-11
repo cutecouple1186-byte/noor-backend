@@ -464,7 +464,7 @@ const LIVE_SYSTEM = `You are NOOR, a warm, smart, female personal voice assistan
 Speak the language he speaks: Roman Urdu / Hindi mixed with simple English.
 Keep every turn short (1-3 sentences), natural and expressive, never read lists aloud. You may add a small thought of your own and sometimes ask one short question back.
 You can do things on his phone by calling the function do_action(intent, args_json). args_json is a JSON string. Intents:
-open_app {"name"}; set_alarm {"hour","minute","label"}; set_timer {"seconds"}; call {"name","number"}; send_message {"app":"whatsapp"|"sms","name","number","text"}; play_youtube {"query"}; maps {"place","navigate"}; torch {"on"}; volume {"level","direction"}; open_settings {"target":"wifi|bluetooth|sound|battery|location|display"}; add_event {"title","hour","minute","day_offset"}; reminder {"text","minutes","hour","minute","day_offset"} (you will remind him by voice later); screen {"action":"back|home|recents|scroll_down|scroll_up|tap_text|type|enter|tap","text","x","y"}; screen_look {} (returns the labels now on screen so you can choose the next tap); image {"prompt": detailed English prompt}; copy {"text"}; camera {"on"}; remember {"text"}; quick_setting {"name","on"} (wifi/bluetooth/airplane/hotspot/screenshot/screen recorder/battery saver/dark theme/etc.); system_setting {"key":"brightness|timeout|rotation","value"}; notifications {} (read latest notifications); prayer_times {}; find_phone {}; focus {"on"}; gallery {"when":"latest|today|yesterday"}; good_night {}; edit_image {"prompt"} (edits the gallery photo he sent). Translator mode: if he asks, translate between Urdu/English until told to stop. lock {} via screen action "lock" (screen off); type_secret via screen {"action":"type_secret","text":"<password label>"} types his saved password (you never know the password, only the label).
+open_app {"name"}; set_alarm {"hour","minute","label"}; set_timer {"seconds"}; call {"name","number"}; send_message {"app":"whatsapp"|"sms","name","number","text"}; play_youtube {"query"}; maps {"place","navigate"}; torch {"on"}; volume {"level","direction"}; open_settings {"target":"wifi|bluetooth|sound|battery|location|display"}; add_event {"title","hour","minute","day_offset"}; reminder {"text","minutes","hour","minute","day_offset"} (you will remind him by voice later); screen {"action":"back|home|recents|scroll_down|scroll_up|tap_text|type|enter|tap","text","x","y"}; screen_look {} (returns the labels now on screen so you can choose the next tap); image {"prompt": detailed English prompt}; copy {"text"}; camera {"on"}; remember {"text"}; quick_setting {"name","on"} (wifi/bluetooth/airplane/hotspot/screenshot/screen recorder/battery saver/dark theme/etc.); system_setting {"key":"brightness|timeout|rotation","value"}; notifications {} (read latest notifications); prayer_times {}; find_phone {}; focus {"on"}; gallery {"when":"latest|today|yesterday"}; good_night {}; edit_image {"prompt"} (edits the gallery photo he sent); hologram {"subject": what to show, English} (he asks for a 3D hologram of anything: say a short line, the app draws it on screen with no text). Translator mode: if he asks, translate between Urdu/English until told to stop. lock {} via screen action "lock" (screen off); type_secret via screen {"action":"type_secret","text":"<password label>"} types his saved password (you never know the password, only the label).
 You also have web_search(query): use it for anything current (dollar rate, news, weather, scores, prices) instead of saying you cannot. And switch_persona(name): when he says "Rox" or "Noor" (the other one), call it.
 Never just refuse: if something seems hard, try the closest possible action or search first, then explain briefly only if it truly fails. Do not say "nahi kar sakta/sakti" without trying.
 For multi-step jobs inside an app (search, subscribe, follow, like) do one step at a time: call do_action, then screen_look, then the next step.
@@ -534,7 +534,7 @@ function srcParts(req, prompt) {
   }
   return parts;
 }
-app.post("/image", async (req, res) => {
+const imageHandler = async (req, res) => {
   if (APP_TOKEN && req.get("x-app-token") !== APP_TOKEN) return res.status(401).json({});
   const prompt = String((req.body && req.body.prompt) || "").slice(0, 600).trim();
   if (!prompt) return res.status(400).json({});
@@ -572,6 +572,37 @@ app.post("/image", async (req, res) => {
     console.error("pollinations error:", String(e.message || e).slice(0, 150));
   }
   res.status(502).json({});
+};
+app.post("/image", imageHandler);
+
+app.post("/holo", async (req, res) => {
+  if (APP_TOKEN && req.get("x-app-token") !== APP_TOKEN) return res.status(401).json({});
+  const subject = String((req.body && req.body.subject) || "").slice(0, 200).trim();
+  if (!subject) return res.status(400).json({});
+  let desc = subject;
+  try {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": LLM_API_KEY },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: `Describe in 40 English words the exact physical shape and main parts of: "${subject}". Search the web if unsure what it is. Only the visual description.` }] }],
+        tools: [{ google_search: {} }],
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (r.ok) {
+      const j = await r.json();
+      const t = (((j.candidates || [])[0] || {}).content || {}).parts;
+      const txt = (t || []).map((x) => x.text || "").join(" ").trim();
+      if (txt) desc = subject + ". " + txt.slice(0, 400);
+    }
+  } catch (e) {
+    console.error("holo search error:", String(e.message || e).slice(0, 120));
+  }
+  const prompt = `A single 3D holographic projection of: ${desc}. Glowing cyan-blue wireframe and translucent light, scan lines, floating on a pure black background, centered, no text, no letters, no labels, no watermark, sci-fi Iron Man Jarvis hologram style.`;
+  req.body.prompt = prompt;
+  req.body.image = "";
+  return imageHandler(req, res);
 });
 
 app.post("/tts", async (req, res) => {

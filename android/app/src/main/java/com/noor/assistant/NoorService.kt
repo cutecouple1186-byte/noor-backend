@@ -114,6 +114,8 @@ class NoorService : Service() {
         if (liveOn) return
         liveOn = true
         liveActive = true
+        liveLast = System.currentTimeMillis()
+        main.postDelayed(idleCheck, 10000)
         stopSpeakingNow()
         busy = false
         try {
@@ -127,13 +129,22 @@ class NoorService : Service() {
         setState("thinking")
         val ls = LiveSession(
             base, token, memories().joinToString("; "), prefs().getInt("gate", 900),
-            { st -> main.post { if (liveOn) setState(st) } },
-            { who, t -> main.post { Chat.add(who, t) } },
+            { st -> main.post { liveLast = System.currentTimeMillis(); if (liveOn) setState(st) } },
+            { who, t -> main.post { liveLast = System.currentTimeMillis(); Chat.add(who, t) } },
             { name, args, cb -> main.post { liveTool(name, args, cb) } },
             { msg -> main.post { endLive(msg) } }
         )
         live = ls
         ls.start()
+    }
+
+    @Volatile private var liveLast = 0L
+    private val idleCheck = object : Runnable {
+        override fun run() {
+            if (!liveOn) return
+            if (System.currentTimeMillis() - liveLast > 45000) live?.end("Koi awaaz nahi aayi, Live band. Hello ${Persona.title} bolein.")
+            else main.postDelayed(this, 10000)
+        }
     }
 
     private fun stopLive() {
@@ -192,6 +203,10 @@ class NoorService : Service() {
                         makeImage(slots.optString("prompt"), lastPic)
                         cb("Photo edit ho rahi hai, Gallery mein aa jayegi.")
                     }
+                }
+                "hologram" -> {
+                    makeHolo(slots.optString("subject"))
+                    cb("Hologram ban raha hai, screen par aa jayega.")
                 }
                 "image" -> {
                     makeImage(slots.optString("prompt"))
@@ -623,6 +638,11 @@ class NoorService : Service() {
                 Chat.set("listening")
             }
             text = lower.replace(roxRe, "").replace(wakeRe, "").trim()
+            val bare = text.replace(Regex("(hello|hallo|hey|hi|hlo|helo|ok|okay|ae|aye|are|oye|ji|sun|suno|\\s|,|\\.)"), "")
+            if (bare.isEmpty() && !liveOn && Regex("hello|hallo|hey|\\bhi\\b|hlo|helo|हेलो|हैलो|हे ").containsMatchIn(lower)) {
+                startLive()
+                return
+            }
             if (changed && text.isEmpty()) {
                 say(if (wantRox) "Ji Sir, Rox hazir hai. Hukm kijiye." else "Ji Rizwan, main Noor hoon. Boliye.")
                 return
@@ -678,6 +698,34 @@ class NoorService : Service() {
 
     @Volatile
     var lastPic = ""
+
+    private fun makeHolo(subject: String) {
+        if (subject.isBlank() || subject.lowercase() in listOf("clear", "none", "off", "band")) {
+            Hud.setHolo(null)
+            return
+        }
+        val base = prefs().getString("url", MainActivity.DEFAULT_URL)!!.trim().trimEnd('/')
+        val token = prefs().getString("token", "")!!
+        Hud.busy = true
+        Hud.ping()
+        Thread {
+            val bytes = Net.holo(base, token, subject)
+            val bmp = if (bytes != null && bytes.size > 1000) android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) else null
+            main.post {
+                Hud.busy = false
+                if (bmp == null) {
+                    Chat.add("noor", "Hologram nahi ban saka, dobara bolein.")
+                    Hud.ping()
+                } else {
+                    Hud.setHolo(bmp)
+                    try {
+                        startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT).putExtra(MainActivity.EXTRA_VISION, "off"))
+                    } catch (e: Exception) {
+                    }
+                }
+            }
+        }.start()
+    }
 
     private fun makeImage(prompt: String, src: String = "") {
         val base = prefs().getString("url", MainActivity.DEFAULT_URL)!!.trim().trimEnd('/')
@@ -840,6 +888,10 @@ class NoorService : Service() {
                     Chat.add("noor", t)
                 }
                 say(if (reply.isNotBlank()) reply else "Copy kar diya Rizwan, ab kahin bhi paste kar sakte hain.")
+            }
+            "hologram" -> {
+                say(if (reply.isNotBlank()) reply else "Theek hai, hologram bana rahi hoon.")
+                makeHolo(slots.optString("subject").ifBlank { userText })
             }
             "image" -> {
                 val pr = slots.optString("prompt").ifBlank { userText }

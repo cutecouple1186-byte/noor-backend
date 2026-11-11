@@ -89,14 +89,18 @@ class MainActivity : Activity() {
     private lateinit var memoryPage: View
     private lateinit var chatPage: View
     private lateinit var toolsPage: View
-    private val navIdx = listOf(0, 2, 5, 3)
+    private val navIdx = listOf(0, 5, 3, -1)
     private lateinit var chatScroll: ScrollView
     private lateinit var settingsPage: View
     private val navItems = ArrayList<TextView>()
     private lateinit var micBtn: TextView
 
     // Home
-    private lateinit var holo: HoloView
+    private lateinit var holoRox: HoloView
+    private lateinit var holoNoor: HoloView
+    private lateinit var hud: HudView
+    private val holo: HoloView get() = if (Persona.isRox) holoRox else holoNoor
+    private var lastRox: Boolean? = null
     private lateinit var termBtn: TextView
     private val boxVals = HashMap<String, TextView>()
     private lateinit var statePill: TextView
@@ -181,7 +185,8 @@ class MainActivity : Activity() {
         root.setBackgroundColor(BG)
 
         pages = FrameLayout(this)
-        homePage = buildHome()
+        buildOldHome()
+        homePage = buildHud()
         visionPage = FrameLayout(this)
         memoryPage = buildMemory()
         chatPage = buildChat()
@@ -231,6 +236,7 @@ class MainActivity : Activity() {
         super.onResume()
         instance = this
         resumed = true
+        hud.removeCallbacks(tick); hud.post(tick)
         Chat.listener = { refreshHome(); refreshLiveBtn() }
         refreshHome()
         refreshSettings()
@@ -270,7 +276,7 @@ class MainActivity : Activity() {
         }
 
         bar.addView(item("⌂\nHome", 0), lp(0, WRAP, 1f))
-        bar.addView(item("💬\nChat", 2), lp(0, WRAP, 1f))
+        bar.addView(item("▦\nTools", 5), lp(0, WRAP, 1f))
 
         micBtn = tv("🎙", 26f, Color.WHITE)
         micBtn.gravity = Gravity.CENTER
@@ -279,8 +285,12 @@ class MainActivity : Activity() {
         mp.setMargins(dp(6), 0, dp(6), 0)
         bar.addView(micBtn, mp)
 
-        bar.addView(item("▦\nTools", 5), lp(0, WRAP, 1f))
         bar.addView(item("⚙\nSettings", 3), lp(0, WRAP, 1f))
+        val more = item("⋯\nMore", -1)
+        more.setOnClickListener {
+            android.app.AlertDialog.Builder(this).setItems(arrayOf("💬  Baat-cheet (Chat)", "👁  Vision (Camera)", "🧠  Memory")) { _, i -> show(intArrayOf(2, 1, 4)[i]) }.show()
+        }
+        bar.addView(more, lp(0, WRAP, 1f))
         return bar
     }
 
@@ -300,7 +310,7 @@ class MainActivity : Activity() {
     }
 
     // ------------------------------------------------------------------ Home
-    private fun buildHome(): View {
+    private fun buildOldHome(): View {
         val col = LinearLayout(this)
         col.orientation = LinearLayout.VERTICAL
 
@@ -332,14 +342,9 @@ class MainActivity : Activity() {
         detailTv = tv("", 12f, MUTED)
         content.addView(detailTv, lp(MATCH, WRAP))
 
-        holo = HoloView(this)
-        holo.setPersona(Persona.isRox)
+        val holoTmp = HoloView(this)
         val stage = FrameLayout(this)
-        stage.addView(holo, FrameLayout.LayoutParams(MATCH, MATCH))
-        holo.setOnClickListener {
-            Persona.set(this, if (Persona.isRox) "noor" else "rox")
-            refreshHome()
-        }
+        stage.addView(holoTmp, FrameLayout.LayoutParams(MATCH, MATCH))
 
         val grid = LinearLayout(this)
         grid.orientation = LinearLayout.VERTICAL
@@ -465,6 +470,98 @@ class MainActivity : Activity() {
         row.addView(send, sp)
         col.addView(row, lp(MATCH, WRAP))
         return col
+    }
+
+    private fun placeChars(animate: Boolean) {
+        val m = hud.mainRect
+        if (m.width() < 10f) return
+        val sz = m.width()
+        for ((v, isRox) in listOf(holoRox to true, holoNoor to false)) {
+            val r = if (isRox == Persona.isRox) m else hud.sideRect
+            val sc = r.width() / sz
+            if (animate) v.animate().x(r.left).y(r.top).scaleX(sc).scaleY(sc).setDuration(700).start()
+            else { v.x = r.left; v.y = r.top; v.scaleX = sc; v.scaleY = sc }
+        }
+    }
+
+    private var newsLink = ""
+    private var newsList = ArrayList<Pair<String, String>>()
+    private var newsI = 0
+
+    private fun loadNews() {
+        Thread {
+            try {
+                val c = java.net.URL("https://news.google.com/rss?hl=en-PK&gl=PK&ceid=PK:en").openConnection() as java.net.HttpURLConnection
+                c.connectTimeout = 8000; c.readTimeout = 8000
+                val x = c.inputStream.bufferedReader().use { it.readText() }
+                val out = ArrayList<Pair<String, String>>()
+                for (m in Regex("<item>.*?<title>(.*?)</title>.*?<link>(.*?)</link>", RegexOption.DOT_MATCHES_ALL).findAll(x)) {
+                    out.add(Pair(m.groupValues[1].replace("<![CDATA[", "").replace("]]>", "").replace("&amp;", "&").replace("&#39;", "'").replace("&quot;", "\""), m.groupValues[2].trim()))
+                    if (out.size >= 12) break
+                }
+                runOnUiThread { newsList = out; newsI = 0 }
+            } catch (e: Exception) {
+            }
+        }.start()
+    }
+
+    private val tick = object : Runnable {
+        override fun run() {
+            if (!resumed) return
+            try {
+                val am = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+                val mi = android.app.ActivityManager.MemoryInfo(); am.getMemoryInfo(mi)
+                hud.ram = (100 - mi.availMem * 100 / mi.totalMem).toInt()
+                hud.batt = (getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager).getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+                val sf = android.os.StatFs(android.os.Environment.getDataDirectory().path)
+                hud.disk = (100 - sf.availableBytes * 100 / sf.totalBytes).toInt()
+                if (newsList.isNotEmpty()) {
+                    val n = newsList[newsI % newsList.size]; hud.news = n.first; newsLink = n.second; newsI++
+                }
+            } catch (e: Exception) {
+            }
+            hud.postDelayed(this, 6000)
+        }
+    }
+
+    private fun typeDialog() {
+        val et = EditText(this)
+        et.hint = "Yahan likhein..."
+        android.app.AlertDialog.Builder(this).setView(et).setPositiveButton("Bhejo") { _, _ ->
+            val m = et.text.toString().trim()
+            if (m.isNotEmpty()) sendTyped(m)
+        }.setNegativeButton("Band", null).show()
+    }
+
+    private fun hudAction(a: String) {
+        when (a) {
+            "wifi", "bluetooth", "airplane" -> Thread { val f = Actions.execute(this, "quick_setting", org.json.JSONObject().put("name", a)); if (f != null) runOnUiThread { Toast.makeText(this, f, Toast.LENGTH_SHORT).show() } }.start()
+            "torch" -> { hud.torchOn = !hud.torchOn; Actions.execute(this, "torch", org.json.JSONObject().put("on", hud.torchOn)) }
+            "keyboard" -> typeDialog()
+            "news" -> if (newsLink.isNotBlank()) try { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(newsLink))) } catch (e: Exception) {}
+            "swap" -> { Persona.set(this, if (Persona.isRox) "noor" else "rox"); refreshHome() }
+            "main" -> talkNow()
+            "holo_clear" -> Hud.setHolo(null)
+        }
+    }
+
+    private fun buildHud(): View {
+        val f = FrameLayout(this)
+        hud = HudView(this)
+        f.addView(hud, FrameLayout.LayoutParams(MATCH, MATCH))
+        holoRox = HoloView(this); holoRox.setPersona(true)
+        holoNoor = HoloView(this); holoNoor.setPersona(false)
+        f.addView(holoRox, FrameLayout.LayoutParams(10, 10))
+        f.addView(holoNoor, FrameLayout.LayoutParams(10, 10))
+        holoRox.isClickable = false; holoNoor.isClickable = false
+        hud.onAction = { hudAction(it) }
+        hud.onRects = { m, _ ->
+            for (v in listOf(holoRox, holoNoor)) { val q = v.layoutParams; q.width = m.width().toInt(); q.height = m.width().toInt(); v.layoutParams = q; v.pivotX = 0f; v.pivotY = 0f }
+            f.post { placeChars(false) }
+        }
+        Thread { val w = Jarvis.weather(this); if (w != null) runOnUiThread { hud.weather = w } }.start()
+        loadNews()
+        return f
     }
 
     private fun buildChat(): View {
@@ -639,7 +736,7 @@ class MainActivity : Activity() {
                 startForegroundService(Intent(this, NoorService::class.java))
             } catch (e: Exception) {
             }
-            input.postDelayed({ NoorService.talkNow() }, 1200)
+            pages.postDelayed({ NoorService.talkNow() }, 1200)
         } else {
             NoorService.talkNow()
         }
@@ -656,11 +753,11 @@ class MainActivity : Activity() {
                 startForegroundService(Intent(this, NoorService::class.java))
             } catch (e: Exception) {
             }
-            input.postDelayed({ NoorService.toggleLive() }, 1200)
+            pages.postDelayed({ NoorService.toggleLive() }, 1200)
         } else {
             NoorService.toggleLive()
         }
-        input.postDelayed({ refreshLiveBtn() }, 1500)
+        pages.postDelayed({ refreshLiveBtn() }, 1500)
     }
 
     private fun refreshLiveBtn() {
@@ -704,7 +801,7 @@ class MainActivity : Activity() {
                             startForegroundService(Intent(this, NoorService::class.java))
                         } catch (e: Exception) {
                         }
-                        input.postDelayed({ NoorService.submitImage(q, b64) }, 1200)
+                        pages.postDelayed({ NoorService.submitImage(q, b64) }, 1200)
                     } else {
                         NoorService.submitImage(q, b64)
                     }
@@ -764,6 +861,11 @@ class MainActivity : Activity() {
             else -> Pair("OFF", MUTED)
         }
         statePill.text = label
+        hud.state = st
+        hud.rox = Persona.isRox
+        holoRox.state = if (Persona.isRox) st else "off"
+        holoNoor.state = if (!Persona.isRox) st else "off"
+        if (lastRox != Persona.isRox) { lastRox = Persona.isRox; placeChars(true) }
         statePill.setTextColor(color)
         statePill.background = shape(Color.parseColor("#0B1626"), 14, color, 1)
         moodTv.text = when (st) {
@@ -999,7 +1101,7 @@ class MainActivity : Activity() {
                         Toast.makeText(this, "Chehra nahi ban saka, thodi der baad dobara dabayein.", Toast.LENGTH_LONG).show()
                     } else {
                         java.io.File(filesDir, "face_" + who.lowercase() + ".png").writeBytes(bytes)
-                        holo.reload()
+                        holoRox.reload(); holoNoor.reload()
                         Toast.makeText(this, who + " ka naya chehra lag gaya. Home dekhein.", Toast.LENGTH_LONG).show()
                     }
                 }
@@ -1013,17 +1115,17 @@ class MainActivity : Activity() {
         })
         cur.addView(button("Hont thora upar") {
             val k = "mouthY_" + (if (Persona.isRox) "rox" else "noor")
-            prefs().edit().putFloat(k, prefs().getFloat(k, if (Persona.isRox) 0.797f else 0.814f) - 0.012f).apply(); holo.reload()
+            prefs().edit().putFloat(k, prefs().getFloat(k, if (Persona.isRox) 0.797f else 0.814f) - 0.012f).apply(); holoRox.reload(); holoNoor.reload()
         })
         cur.addView(button("Hont thora neeche") {
             val k = "mouthY_" + (if (Persona.isRox) "rox" else "noor")
-            prefs().edit().putFloat(k, prefs().getFloat(k, if (Persona.isRox) 0.797f else 0.814f) + 0.012f).apply(); holo.reload()
+            prefs().edit().putFloat(k, prefs().getFloat(k, if (Persona.isRox) 0.797f else 0.814f) + 0.012f).apply(); holoRox.reload(); holoNoor.reload()
         })
         cur.addView(button("Rangeen tasveer ⇄ Dots hologram") {
             prefs().edit().putBoolean("dots", !prefs().getBoolean("dots", false)).apply()
         })
         cur.addView(button("Cartoon chehra wapas") {
-            java.io.File(filesDir, "face_noor.png").delete(); java.io.File(filesDir, "face_rox.png").delete(); holo.reload()
+            java.io.File(filesDir, "face_noor.png").delete(); java.io.File(filesDir, "face_rox.png").delete(); holoRox.reload(); holoNoor.reload()
         })
         sec("🔔  EXTRA IJAZATEN", Color.parseColor("#F97316"))
         cur.addView(button("Notification parhne ki ijazat (Noor)") {
