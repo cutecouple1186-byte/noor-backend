@@ -58,6 +58,8 @@ class HudView(ctx: Context) : View(ctx) {
     var bubble = ""
     var liveOn = false
     var logo: Bitmap? = null
+    var quality = 1
+    var focus = 0.8f
 
     override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
         val lr = 0.095f * w
@@ -146,7 +148,8 @@ class HudView(ctx: Context) : View(ctx) {
         p.shader = null
         // taare / dhool
         p.color = Color.parseColor("#7DD3FC")
-        for (s in stars) {
+        if (quality > 0) for ((si, s) in stars.withIndex()) {
+            if (quality == 1 && si % 2 == 1) continue
             val y = (s[1] + t * 0.01f * (0.4f + s[2])) % 1f
             p.alpha = (60 + 120 * abs(sin(t + s[0] * 9f))).toInt()
             c.drawCircle(s[0] * w, y * h, d(0.8f + s[2]), p)
@@ -275,7 +278,7 @@ class HudView(ctx: Context) : View(ctx) {
             line = line.take(n) + "…"
         }
         txt(c, line, rNews.left + d(8f), rNews.centerY() + d(6f), 10f, Color.WHITE)
-        txt(c, "Read More →", rNews.left + d(8f), rNews.bottom - d(8f), 9f, cy)
+        txt(c, "Read More >", rNews.left + d(8f), rNews.bottom - d(8f), 9f, cy)
         // waveform + mic (LIVE)
         drawWave(c, 0.17f * w, 0.865f * h, 0.27f * w)
         drawWave(c, 0.56f * w, 0.865f * h, 0.40f * w)
@@ -361,10 +364,8 @@ class HudView(ctx: Context) : View(ctx) {
             val sway = 0.9f + 0.1f * cos(t * 1.4f)
             val dst = RectF(cx - side / 2f * sway, r.bottom - side, cx + side / 2f * sway, r.bottom)
             p.style = Paint.Style.FILL
-            p.xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
-            p.alpha = (225 + 25 * sin(t * 9f)).toInt()
+            p.alpha = ((205 + 25 * sin(t * 9f)) * focus.coerceIn(0.4f, 1f)).toInt()
             c.drawBitmap(b, null, dst, p)
-            p.xfermode = null
             p.color = Color.parseColor("#22D3EE")
             var y = dst.top + (t * 25f) % d(6f)
             p.alpha = 22

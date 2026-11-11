@@ -190,6 +190,7 @@ class MainActivity : Activity() {
         visionPage = FrameLayout(this)
         memoryPage = buildMemory()
         chatPage = buildChat()
+        skillsPage = buildSkills()
         settingsPage = buildSettings()
         pages.addView(homePage, FrameLayout.LayoutParams(MATCH, MATCH))
         pages.addView(visionPage, FrameLayout.LayoutParams(MATCH, MATCH))
@@ -197,6 +198,7 @@ class MainActivity : Activity() {
         pages.addView(chatPage, FrameLayout.LayoutParams(MATCH, MATCH))
         pages.addView(toolsPage, FrameLayout.LayoutParams(MATCH, MATCH))
         pages.addView(settingsPage, FrameLayout.LayoutParams(MATCH, MATCH))
+        pages.addView(skillsPage, FrameLayout.LayoutParams(MATCH, MATCH))
 
         root.addView(pages, lp(MATCH, 0, 1f))
         root.addView(buildNav(), lp(MATCH, WRAP))
@@ -301,6 +303,8 @@ class MainActivity : Activity() {
         chatPage.visibility = if (idx == 2) View.VISIBLE else View.GONE
         toolsPage.visibility = if (idx == 5) View.VISIBLE else View.GONE
         settingsPage.visibility = if (idx == 3) View.VISIBLE else View.GONE
+        skillsPage.visibility = if (idx == 6) View.VISIBLE else View.GONE
+        if (idx == 6) refreshSkills()
         for (i in navItems.indices) navItems[i].setTextColor(if (navIdx[i] == idx) CYAN else MUTED)
         if (idx == 1) openVision()
         if (idx == 4) refreshMemory()
@@ -351,8 +355,8 @@ class MainActivity : Activity() {
             val b = LinearLayout(this)
             b.orientation = LinearLayout.VERTICAL
             b.setPadding(dp(12), dp(10), dp(12), dp(10))
-            b.background = shape(CARD, 14, accent, 2)
-            b.addView(tv("$icon  $title", 11f, accent, true))
+            b.background = shape(Color.parseColor("#0B2A4A"), 14, Color.parseColor("#22D3EE"), 1)
+            b.addView(tv("$icon  $title", 11f, Color.parseColor("#7DD3FC"), true))
             val v = tv(value, 14f, TEXT, true)
             v.maxLines = 2
             boxVals[key] = v
@@ -391,11 +395,10 @@ class MainActivity : Activity() {
             return b
         }
         rowOf(nb("memory", "🧠", "MEMORY", CYAN) { show(4) },
-            nb("skills", "⚡", "SKILLS", Color.parseColor("#34D399")) { sendTyped("Tum kya kya kar sakti ho? Chhoti si list batao") }, top)
+            nb("skills", "⚡", "SKILLS", Color.parseColor("#34D399")) { show(6) }, top)
         rowOf(nb("char", "🎭", "CHARACTER", Color.parseColor("#EF4444")) { Persona.set(this, if (Persona.isRox) "noor" else "rox"); refreshHome() },
             nb("settings", "⚙", "SETTING", Color.parseColor("#94A3B8")) { show(3) }, top)
         content.addView(top, lp(MATCH, WRAP))
-        content.addView(BusView(this), lp(MATCH, dp(26)))
         content.addView(grid, lp(MATCH, WRAP))
 
         val panel = LinearLayout(this)
@@ -548,6 +551,7 @@ class MainActivity : Activity() {
     private fun buildHud(): View {
         val f = FrameLayout(this)
         hud = HudView(this)
+        hud.quality = prefs().getInt("gfx", 1); hud.focus = 0.4f + prefs().getInt("focus", 40) / 100f
         f.addView(hud, FrameLayout.LayoutParams(MATCH, MATCH))
         holoRox = HoloView(this); holoRox.setPersona(true)
         holoNoor = HoloView(this); holoNoor.setPersona(false)
@@ -562,6 +566,48 @@ class MainActivity : Activity() {
         Thread { val w = Jarvis.weather(this); if (w != null) runOnUiThread { hud.weather = w } }.start()
         loadNews()
         return f
+    }
+
+    private lateinit var skillsPage: View
+    private lateinit var skillsView: SkillsView
+
+    private fun buildSkills(): View {
+        val sv = ScrollView(this)
+        sv.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.parseColor("#020B1A"), Color.parseColor("#04204A")))
+        val col = LinearLayout(this); col.orientation = LinearLayout.VERTICAL; col.setPadding(dp(16), dp(24), dp(16), dp(24))
+        val h = tv("SKILLS", 24f, Color.WHITE, true); h.gravity = Gravity.CENTER; h.letterSpacing = 0.2f
+        h.setPadding(dp(8), dp(10), dp(8), dp(10)); h.background = shape(Color.parseColor("#0A2A4A"), 12, Color.parseColor("#22D3EE"), 2)
+        col.addView(h, lp(MATCH, WRAP))
+        skillsView = SkillsView(this)
+        col.addView(skillsView, lp(MATCH, WRAP))
+        val list = listOf(
+            "📞 Call, SMS, WhatsApp bhejna", "🎵 YouTube / gaane", "📷 Camera se dekhna (Vision)", "🌐 Net se search, khabrein",
+            "🖼 Tasveer banana aur edit", "🔷 3D hologram banana", "📱 App kholna, screen par tap/likhna", "⏰ Alarm, timer, yaad-dahani",
+            "🕌 Namaz ke waqt", "🔦 Torch, WiFi, Bluetooth, Flight", "🔔 Notifications parhna", "🔑 Password (sirf phone mein)",
+            "🌙 Good night, focus mode", "🎙 Live baat-cheet (Hello Noor)"
+        )
+        for (s in list) {
+            val r = tv(s, 14f, Color.WHITE); r.setPadding(dp(12), dp(9), dp(12), dp(9)); r.background = shape(Color.parseColor("#0A2A4A"), 10, Color.parseColor("#0E4A6B"), 1)
+            val q = lp(MATCH, WRAP); q.topMargin = dp(6); col.addView(r, q)
+        }
+        sv.addView(col)
+        return sv
+    }
+
+    private fun refreshSkills() {
+        val perms = listOf(
+            checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED,
+            checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED,
+            checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED,
+            Settings.canDrawOverlays(this),
+            (getSystemService(Context.POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(packageName)
+        )
+        val mem = (prefs().getString("memories", "") ?: "").split("\n").count { it.isNotBlank() }
+        skillsView.bars = listOf(
+            "AI (SERVER)" to (if (prefs().getString("token", "").isNullOrBlank()) 0 else 100),
+            "YAADEIN (DATA)" to Math.min(100, mem * 10),
+            "SYSTEM CONTROL" to perms.count { it } * 100 / perms.size
+        )
     }
 
     private fun buildChat(): View {
@@ -981,11 +1027,14 @@ class MainActivity : Activity() {
     // ------------------------------------------------------------------ Settings
     private fun buildSettings(): View {
         val sv = ScrollView(this)
+        sv.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.parseColor("#020B1A"), Color.parseColor("#04204A")))
         val col = LinearLayout(this)
         col.orientation = LinearLayout.VERTICAL
         col.setPadding(dp(18), dp(24), dp(18), dp(24))
 
-        col.addView(tv("Settings", 22f, CYAN, true), lp(MATCH, WRAP))
+        val sh = tv("SETTINGS", 24f, Color.WHITE, true); sh.gravity = Gravity.CENTER; sh.letterSpacing = 0.2f
+        sh.setPadding(dp(8), dp(10), dp(8), dp(10)); sh.background = shape(Color.parseColor("#0A2A4A"), 12, Color.parseColor("#22D3EE"), 2)
+        col.addView(sh, lp(MATCH, WRAP))
         statusTv = tv("", 14f, TEXT)
         statusTv.setPadding(0, dp(8), 0, dp(4))
         col.addView(statusTv, lp(MATCH, WRAP))
@@ -995,8 +1044,8 @@ class MainActivity : Activity() {
             val card = LinearLayout(this)
             card.orientation = LinearLayout.VERTICAL
             card.setPadding(dp(14), dp(12), dp(14), dp(12))
-            card.background = shape(Color.parseColor("#07101B"), 16, accent, 2)
-            val hd = tv(title, 12f, accent, true)
+            card.background = shape(Color.parseColor("#0A2A4A"), 16, Color.parseColor("#22D3EE"), 1)
+            val hd = tv(title, 12f, Color.parseColor("#7DD3FC"), true)
             hd.letterSpacing = 0.12f
             card.addView(hd)
             val p = lp(MATCH, WRAP)
@@ -1004,6 +1053,40 @@ class MainActivity : Activity() {
             col.addView(card, p)
             cur = card
         }
+        sec("🔊  SYSTEM SOUND", CYAN)
+        val am = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        val vol = android.widget.SeekBar(this)
+        vol.max = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
+        vol.progress = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
+        vol.progressTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#22D3EE"))
+        vol.thumbTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
+        vol.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: android.widget.SeekBar?, v: Int, u: Boolean) { if (u) am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, v, 0) }
+            override fun onStartTrackingTouch(s: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(s: android.widget.SeekBar?) {}
+        })
+        cur.addView(vol, lp(MATCH, WRAP))
+        sec("✨  GRAPHICS QUALITY", CYAN)
+        val gq = LinearLayout(this); gq.orientation = LinearLayout.HORIZONTAL
+        val gqs = ArrayList<TextView>()
+        fun paintGq() { val q = prefs().getInt("gfx", 1); for ((i, v) in gqs.withIndex()) { v.setTextColor(if (i == q) Color.parseColor("#04121C") else TEXT); v.background = shape(if (i == q) Color.parseColor("#22D3EE") else Color.parseColor("#0B3A5C"), 16, Color.parseColor("#22D3EE"), 1) } }
+        for ((i, nm) in listOf("LOW", "MEDIUM", "ULTRA").withIndex()) {
+            val v = tv(nm, 13f, TEXT, true); v.gravity = Gravity.CENTER; v.setPadding(dp(6), dp(10), dp(6), dp(10))
+            v.setOnClickListener { prefs().edit().putInt("gfx", i).apply(); hud.quality = i; paintGq() }
+            gqs.add(v); val q = lp(0, WRAP, 1f); q.setMargins(dp(3), dp(6), dp(3), 0); gq.addView(v, q)
+        }
+        paintGq()
+        cur.addView(gq, lp(MATCH, WRAP))
+        sec("🔷  HOLOGRAPHIC FOCUS", CYAN)
+        val fo = android.widget.SeekBar(this); fo.max = 60; fo.progress = prefs().getInt("focus", 40)
+        fo.progressTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#22D3EE"))
+        fo.thumbTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
+        fo.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: android.widget.SeekBar?, v: Int, u: Boolean) { if (u) { prefs().edit().putInt("focus", v).apply(); hud.focus = 0.4f + v / 100f } }
+            override fun onStartTrackingTouch(s: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(s: android.widget.SeekBar?) {}
+        })
+        cur.addView(fo, lp(MATCH, WRAP))
         sec("🔌  CONNECTION", CYAN)
         cur.addView(tv("Server (Vercel ka link)", 13f, MUTED), lp(MATCH, WRAP))
         urlEt = EditText(this)
