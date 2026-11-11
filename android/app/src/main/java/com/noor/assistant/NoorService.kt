@@ -701,7 +701,7 @@ class NoorService : Service() {
 
     private fun makeHolo(subject: String) {
         if (subject.isBlank() || subject.lowercase() in listOf("clear", "none", "off", "band")) {
-            Hud.setHolo(null)
+            Hud.put(null)
             return
         }
         val base = prefs().getString("url", MainActivity.DEFAULT_URL)!!.trim().trimEnd('/')
@@ -717,7 +717,7 @@ class NoorService : Service() {
                     Chat.add("noor", "Hologram nahi ban saka, dobara bolein.")
                     Hud.ping()
                 } else {
-                    Hud.setHolo(bmp)
+                    Hud.put(bmp)
                     try {
                         startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT).putExtra(MainActivity.EXTRA_VISION, "off"))
                     } catch (e: Exception) {

@@ -541,7 +541,7 @@ class MainActivity : Activity() {
             "news" -> if (newsLink.isNotBlank()) try { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(newsLink))) } catch (e: Exception) {}
             "swap" -> { Persona.set(this, if (Persona.isRox) "noor" else "rox"); refreshHome() }
             "main" -> talkNow()
-            "holo_clear" -> Hud.setHolo(null)
+            "holo_clear" -> Hud.put(null)
         }
     }
 

@@ -8,7 +8,7 @@ object Hud {
     @Volatile var busy = false
     var listener: (() -> Unit)? = null
 
-    fun setHolo(b: Bitmap?) {
+    fun put(b: Bitmap?) {
         holo = b
         ping()
     }
