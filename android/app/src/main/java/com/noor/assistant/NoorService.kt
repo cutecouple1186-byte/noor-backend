@@ -803,9 +803,13 @@ class NoorService : Service() {
     }
 
     private fun online(): Boolean {
-        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
-        val n = cm.activeNetwork ?: return false
-        return cm.getNetworkCapabilities(n)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        return try {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            val n = cm.activeNetwork ?: return false
+            cm.getNetworkCapabilities(n)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        } catch (e: Exception) {
+            true
+        }
     }
 
     private fun ask(textIn: String, pic: String = "") {
