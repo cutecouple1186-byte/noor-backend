@@ -90,10 +90,8 @@ class MainActivity : Activity() {
     private lateinit var memoryPage: View
     private lateinit var chatPage: View
     private lateinit var toolsPage: View
-    private val navIdx = listOf(0, 9, 7, 8, -1)
+    private val navIdx = listOf(0, 9, 6, 3, -1)
     private lateinit var navBar: View
-    private lateinit var skillsPic: PicPage
-    private lateinit var settingsPic: PicPage
     private lateinit var chatScroll: ScrollView
     private lateinit var settingsPage: View
     private val navItems = ArrayList<TextView>()
@@ -126,6 +124,7 @@ class MainActivity : Activity() {
     private lateinit var proBtn: Button
     private lateinit var pttBtn: Button
     private lateinit var gateBtn: Button
+    private lateinit var netBtn: Button
     private lateinit var liveBtn: android.widget.TextView
     private lateinit var urlEt: EditText
     private lateinit var tokEt: EditText
@@ -195,7 +194,6 @@ class MainActivity : Activity() {
         memoryPage = buildMemory()
         chatPage = buildChat()
         skillsPage = buildSkills()
-        buildPicPages()
         holoPage = HoloPageView(this)
         holoPage.onAction = { if (it == "holo_clear") Hud.put(null) }
         settingsPage = buildSettings()
@@ -206,8 +204,6 @@ class MainActivity : Activity() {
         pages.addView(toolsPage, FrameLayout.LayoutParams(MATCH, MATCH))
         pages.addView(settingsPage, FrameLayout.LayoutParams(MATCH, MATCH))
         pages.addView(skillsPage, FrameLayout.LayoutParams(MATCH, MATCH))
-        pages.addView(skillsPic, FrameLayout.LayoutParams(MATCH, MATCH))
-        pages.addView(settingsPic, FrameLayout.LayoutParams(MATCH, MATCH))
         pages.addView(holoPage, FrameLayout.LayoutParams(MATCH, MATCH))
 
         root.addView(pages, lp(MATCH, 0, 1f))
@@ -291,7 +287,7 @@ class MainActivity : Activity() {
 
         bar.addView(item("⌂\nHome", 0), lp(0, WRAP, 1f))
         bar.addView(item("🔷\nHologram", 9), lp(0, WRAP, 1f))
-        bar.addView(item("▦\nTools", 7), lp(0, WRAP, 1f))
+        bar.addView(item("▦\nTools", 6), lp(0, WRAP, 1f))
 
         micBtn = tv("🎙", 26f, Color.WHITE)
         micBtn.gravity = Gravity.CENTER
@@ -299,7 +295,7 @@ class MainActivity : Activity() {
         val mp = lp(dp(64), dp(64))
         mp.setMargins(dp(6), 0, dp(6), 0)
 
-        bar.addView(item("⚙\nSettings", 8), lp(0, WRAP, 1f))
+        bar.addView(item("⚙\nSettings", 3), lp(0, WRAP, 1f))
         val more = item("⋯\nMore", -1)
         more.setOnClickListener { showMore() }
         bar.addView(more, lp(0, WRAP, 1f))
@@ -316,11 +312,8 @@ class MainActivity : Activity() {
         settingsPage.visibility = if (idx == 3) View.VISIBLE else View.GONE
         skillsPage.visibility = if (idx == 6) View.VISIBLE else View.GONE
         if (idx == 6) refreshSkills()
-        skillsPic.visibility = if (idx == 7) View.VISIBLE else View.GONE
-        settingsPic.visibility = if (idx == 8) View.VISIBLE else View.GONE
         holoPage.visibility = if (idx == 9) View.VISIBLE else View.GONE
         navBar.visibility = View.VISIBLE
-        if (idx == 8) settingsPic.invalidate()
         for (i in navItems.indices) navItems[i].setTextColor(if (navIdx[i] == idx) CYAN else MUTED)
         if (idx == 1) openVision()
         if (idx == 4) refreshMemory()
@@ -491,72 +484,7 @@ class MainActivity : Activity() {
     }
 
     private fun showMore() {
-        android.app.AlertDialog.Builder(this).setItems(arrayOf("💬  Baat-cheet (Chat)", "👁  Vision (Camera)", "🧠  Memory", "⚙  Advanced settings (server, ijazaten)", "▦  Purane Tools", "⚡  Skills ki list")) { _, i -> show(intArrayOf(2, 1, 4, 3, 5, 6)[i]) }.show()
-    }
-
-    private fun buildPicPages() {
-        val C = Color.WHITE
-        // ---- Skills (aap ki tasveer ka left panel) ----
-        skillsPic = PicPage(this, R.drawable.settings_bg, 0.10f, 0.085f, 0.48f, 0.83f)
-        skillsPic.zone(0.14f, 0.20f, 0.30f, 0.40f, "holo:brain")
-        skillsPic.zone(0.32f, 0.20f, 0.44f, 0.40f, "holo:star")
-        skillsPic.zone(0.14f, 0.43f, 0.40f, 0.49f, "ask:Tum kya kya kar sakti ho? Chhoti si list batao")
-        skillsPic.zone(0.14f, 0.535f, 0.40f, 0.595f, "ask:Mere phone ka data aur haal batao")
-        skillsPic.zone(0.14f, 0.63f, 0.40f, 0.70f, "list")
-        skillsPic.onAction = { a ->
-            val k = a.substringBefore(":")
-            val v = a.substringAfter(":").substringBeforeLast(":")
-            when (k) {
-                "holo" -> sendTyped("$v ka 3D hologram banao")
-                "ask" -> sendTyped(v)
-                "list" -> show(6)
-            }
-        }
-        // ---- Settings (aap ki tasveer ka right panel) ----
-        settingsPic = PicPage(this, R.drawable.settings_bg, 0.545f, 0.085f, 0.925f, 0.83f)
-        val am = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-        settingsPic.zone(0.738f, 0.25f, 0.88f, 0.298f, "slider")
-        settingsPic.zone(0.63f, 0.43f, 0.72f, 0.48f, "gate0")
-        settingsPic.zone(0.72f, 0.43f, 0.80f, 0.48f, "gate1")
-        settingsPic.zone(0.80f, 0.43f, 0.88f, 0.48f, "gate2")
-        settingsPic.zone(0.575f, 0.62f, 0.875f, 0.75f, "adv")
-        settingsPic.onAction = { a ->
-            val k = a.substringBefore(":")
-            val f = a.substringAfterLast(":").toFloatOrNull() ?: 0f
-            when (k) {
-                "slider" -> { am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, (f.coerceIn(0f, 1f) * am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)).toInt(), 0); settingsPic.invalidate() }
-                "gate0" -> { prefs().edit().putInt("gate", 600).apply(); settingsPic.invalidate() }
-                "gate1" -> { prefs().edit().putInt("gate", 900).apply(); settingsPic.invalidate() }
-                "gate2" -> { prefs().edit().putInt("gate", 1500).apply(); settingsPic.invalidate() }
-                "adv" -> show(3)
-            }
-        }
-        settingsPic.overlay = { v, c ->
-            // sound slider
-            v.cover(c, 0.738f, 0.25f, 0.88f, 0.298f)
-            val lvl = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC).toFloat() / am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
-            val pp = Paint(Paint.ANTI_ALIAS_FLAG)
-            for (i in 0 until 22) {
-                val x0 = v.X(0.74f) + i * (v.X(0.875f) - v.X(0.74f)) / 22f
-                pp.color = if (i / 22f < lvl) Color.parseColor("#22D3EE") else Color.parseColor("#1B4A66")
-                c.drawRect(x0, v.Y(0.262f), x0 + v.d(5f), v.Y(0.288f), pp)
-            }
-            // awaaz filter (background ki awaaz kam sunna)
-            v.cover(c, 0.575f, 0.385f, 0.885f, 0.485f)
-            v.text(c, "AWAAZ FILTER (door ki awaaz band)", 0.585f, 0.415f, 10f, C)
-            val g = prefs().getInt("gate", 900)
-            val sel = if (g <= 600) 0 else if (g <= 900) 1 else 2
-            for ((i, nm) in listOf("LOW", "MEDIUM", "HIGH").withIndex()) {
-                val x0 = 0.63f + i * 0.085f
-                pp.style = Paint.Style.FILL; pp.color = if (i == sel) Color.parseColor("#22D3EE") else Color.parseColor("#0B3A5C")
-                c.drawRoundRect(RectF(v.X(x0), v.Y(0.435f), v.X(x0 + 0.078f), v.Y(0.475f)), v.d(12f), v.d(12f), pp)
-                v.text(c, nm, x0 + 0.039f, 0.462f, 9.5f, if (i == sel) Color.parseColor("#04121C") else C, Paint.Align.CENTER)
-            }
-            // user authorization -> advanced
-            v.cover(c, 0.575f, 0.625f, 0.875f, 0.745f)
-            v.text(c, "ADVANCED SETTINGS", 0.585f, 0.665f, 11f, Color.parseColor("#22D3EE"))
-            v.text(c, "Server, ijazaten, password: yahan dabayein", 0.585f, 0.70f, 9f, C)
-        }
+        android.app.AlertDialog.Builder(this).setItems(arrayOf("💬  Baat-cheet (Chat)", "👁  Vision (Camera)", "🧠  Memory", "📦  Purane boxes")) { _, i -> show(intArrayOf(2, 1, 4, 5)[i]) }.show()
     }
 
     private fun placeChars(animate: Boolean) {}
@@ -652,14 +580,35 @@ class MainActivity : Activity() {
         col.addView(h, lp(MATCH, WRAP))
         skillsView = SkillsView(this)
         col.addView(skillsView, lp(MATCH, WRAP))
+        // hologram jaldi banane ke chip
+        val chips = LinearLayout(this); chips.orientation = LinearLayout.HORIZONTAL
+        for ((nm, q) in listOf("🧠 Brain" to "brain", "🌍 Earth" to "earth planet", "❤ Dil" to "human heart", "🚗 Gaadi" to "sports car", "🛰 Satellite" to "satellite")) {
+            val c = tv(nm, 12f, Color.WHITE); c.gravity = Gravity.CENTER; c.setPadding(dp(8), dp(8), dp(8), dp(8))
+            c.background = shape(Color.parseColor("#0B3A5C"), 16, Color.parseColor("#22D3EE"), 1)
+            c.setOnClickListener { sendTyped("$q ka 3D hologram banao") }
+            val q2 = lp(0, WRAP, 1f); q2.setMargins(dp(2), dp(8), dp(2), 0); chips.addView(c, q2)
+        }
+        col.addView(chips, lp(MATCH, WRAP))
         val list = listOf(
-            "📞 Call, SMS, WhatsApp bhejna", "🎵 YouTube / gaane", "📷 Camera se dekhna (Vision)", "🌐 Net se search, khabrein",
-            "🖼 Tasveer banana aur edit", "🔷 3D hologram banana", "📱 App kholna, screen par tap/likhna", "⏰ Alarm, timer, yaad-dahani",
-            "🕌 Namaz ke waqt", "🔦 Torch, WiFi, Bluetooth, Flight", "🔔 Notifications parhna", "🔑 Password (sirf phone mein)",
-            "🌙 Good night, focus mode", "🎙 Live baat-cheet (Hello Noor)"
+            Triple("📞 Call, SMS, WhatsApp bhejna", "Bolo: 'Ammi ko call karo'", {}),
+            Triple("🎵 YouTube / gaane", "Bolo: 'Gaana lagao'", { sendTyped("Koi acha gaana lagao") }),
+            Triple("📷 Camera se dekhna (Vision)", "Camera kholta hai", { show(1) }),
+            Triple("🌐 Net se search, khabrein", "Aaj ki khabrein poochta hai", { sendTyped("Aaj ki badi khabrein batao") }),
+            Triple("🖼 Tasveer banana aur edit", "Bolo: 'Billi ki tasveer banao'", {}),
+            Triple("🔷 3D hologram banana", "Hologram page kholta hai", { show(9) }),
+            Triple("📱 App kholna, screen par tap/likhna", "Bolo: 'WhatsApp kholo'", {}),
+            Triple("⏰ Alarm, timer, yaad-dahani", "Bolo: '10 minute ka timer'", {}),
+            Triple("🕌 Namaz ke waqt", "Namaz ke waqt poochta hai", { sendTyped("Namaz ke waqt batao") }),
+            Triple("🔦 Torch, WiFi, Bluetooth, Flight", "Bolo: 'Torch jalao'", { Actions.execute(this, "torch", org.json.JSONObject().put("on", true)) }),
+            Triple("🔔 Notifications parhna", "Notifications sunata hai", { sendTyped("Meri notifications batao") }),
+            Triple("🌙 Good night, focus mode", "Good night chalata hai", { sendTyped("good night") }),
+            Triple("🎙 Live baat-cheet (Hello Noor)", "Live shuru/band", { toggleLive() })
         )
-        for (s in list) {
-            val r = tv(s, 14f, Color.WHITE); r.setPadding(dp(12), dp(9), dp(12), dp(9)); r.background = shape(Color.parseColor("#0A2A4A"), 10, Color.parseColor("#0E4A6B"), 1)
+        for ((s, hint, act) in list) {
+            val r = LinearLayout(this); r.orientation = LinearLayout.VERTICAL
+            r.setPadding(dp(12), dp(9), dp(12), dp(9)); r.background = shape(Color.parseColor("#0A2A4A"), 10, Color.parseColor("#0E4A6B"), 1)
+            r.addView(tv(s, 14f, Color.WHITE)); r.addView(tv(hint, 11f, Color.parseColor("#7DD3FC")))
+            r.setOnClickListener { act(); Toast.makeText(this, hint, Toast.LENGTH_SHORT).show() }
             val q = lp(MATCH, WRAP); q.topMargin = dp(6); col.addView(r, q)
         }
         sv.addView(col)
@@ -1208,6 +1157,12 @@ class MainActivity : Activity() {
             refreshSettings()
         }
         cur.addView(gateBtn)
+        netBtn = button("") {
+            prefs().edit().putBoolean("netguard", !prefs().getBoolean("netguard", false)).apply()
+            hud.netGuard = prefs().getBoolean("netguard", false)
+            refreshSettings()
+        }
+        cur.addView(netBtn)
         autoBtn = button("") {
             prefs().edit().putBoolean("autostart", !prefs().getBoolean("autostart", true)).apply()
             refreshSettings()
@@ -1305,6 +1260,7 @@ class MainActivity : Activity() {
         statusTv.text = "Mic: ${m(mic)}   Camera: ${m(cam)}   Contacts: ${m(contacts)}" +
             "\nApps kholna: ${m(overlay)}   Background: ${m(battery)}"
         val auto = prefs().getBoolean("autostart", true)
+        netBtn.text = "Net na ho to Noor band rahe: " + (if (prefs().getBoolean("netguard", false)) "ON" else "OFF") + "  (dabakar badlein)"
         gateBtn.text = "Live mein awaaz filter (door ki awaaz band): " + when (prefs().getInt("gate", 900)) { 0 -> "BAND"; 600 -> "HALKA"; 900 -> "DARMIYANA"; else -> "SAKHT" } + "  (dabakar badlein)"
         pttBtn.text = "Sirf mic dabane par sunna (Hey Noor ke bina): " + (if (prefs().getBoolean("ptt", false)) "ON" else "OFF")
         proBtn.text = "Noor khud baat kare (trending, gappein): " + (if (prefs().getBoolean("proactive", true)) "ON" else "OFF")
