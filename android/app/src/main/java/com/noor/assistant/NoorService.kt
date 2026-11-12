@@ -1012,12 +1012,16 @@ class NoorService : Service() {
 
     private fun speakLocal(text: String) {
         val t = tts
+        Chat.add("noor", "(Noor ki awaaz server se nahi aayi: ${Net.ttsErr}. Phone ki awaaz chala rahi hoon.)")
         if (!ttsReady || t == null) {
+            Chat.add("noor", "(Phone mein Text-to-speech engine nahi mila. Settings > Language > Text-to-speech mein Google engine ON karein.)")
             doneSpeaking()
             return
         }
         val arabic = text.any { it in '؀'..'ۿ' }
-        t.setLanguage(if (arabic) Locale("ur", "PK") else Locale("hi", "IN"))
+        val want = if (arabic) Locale("ur", "PK") else Locale("hi", "IN")
+        val rr = t.setLanguage(want)
+        if (rr == TextToSpeech.LANG_MISSING_DATA || rr == TextToSpeech.LANG_NOT_SUPPORTED) t.setLanguage(Locale.US)
         t.setPitch(if (Persona.isRox) 0.7f else 1.1f)
         if (t.speak(text, TextToSpeech.QUEUE_FLUSH, null, "noor") != TextToSpeech.SUCCESS) doneSpeaking()
     }

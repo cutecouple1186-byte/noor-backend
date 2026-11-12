@@ -70,21 +70,31 @@ object Net {
     }
 
     /** Server ki Gemini awaaz (WAV). Na chale to null, tab phone ki apni awaaz use hoti hai. */
+    @Volatile var ttsErr = ""
+
     fun tts(base: String, token: String, text: String, dir: File): File? {
-        return try {
-            val c = open("$base/tts", token)
-            c.connectTimeout = 4000
-            c.readTimeout = 7000
-            c.outputStream.use {
-                it.write(JSONObject().put("text", text).put("persona", Persona.id).toString().toByteArray(Charsets.UTF_8))
+        for (attempt in 0..1) {
+            try {
+                val c = open("$base/tts", token)
+                c.connectTimeout = 8000
+                c.readTimeout = 20000
+                c.outputStream.use {
+                    it.write(JSONObject().put("text", text).put("persona", Persona.id).toString().toByteArray(Charsets.UTF_8))
+                }
+                val code = c.responseCode
+                if (code != 200) {
+                    ttsErr = "server code $code"
+                    continue
+                }
+                val f = File(dir, "noor_tts.wav")
+                c.inputStream.use { i -> f.outputStream().use { o -> i.copyTo(o) } }
+                if (f.length() >= 100) { ttsErr = ""; return f }
+                ttsErr = "khali awaaz"
+            } catch (e: Exception) {
+                ttsErr = (e.message ?: e.javaClass.simpleName).take(60)
             }
-            if (c.responseCode != 200) return null
-            val f = File(dir, "noor_tts.wav")
-            c.inputStream.use { i -> f.outputStream().use { o -> i.copyTo(o) } }
-            if (f.length() < 100) null else f
-        } catch (e: Exception) {
-            null
         }
+        return null
     }
 
     /** Aaj Pakistan mein kya trend/viral hai, Noor ke andaz mein 1-2 jumle. Khali ho to kuch nahi bolna. */
