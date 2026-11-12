@@ -112,6 +112,7 @@ class NoorService : Service() {
 
     private fun startLive() {
         if (liveOn) return
+        if (prefs().getBoolean("netguard", false) && !online()) { Chat.add("noor", "Net nahi hai, Live nahi chalega."); return }
         liveOn = true
         liveActive = true
         liveLast = System.currentTimeMillis()
@@ -700,6 +701,7 @@ class NoorService : Service() {
     var lastPic = ""
 
     private fun makeHolo(subject: String) {
+        if (subject.isNotBlank()) try { startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT).putExtra(MainActivity.EXTRA_VISION, "holo")) } catch (e: Exception) {}
         if (subject.isBlank() || subject.lowercase() in listOf("clear", "none", "off", "band")) {
             Hud.put(null)
             return
@@ -719,7 +721,7 @@ class NoorService : Service() {
                 } else {
                     Hud.put(bmp)
                     try {
-                        startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT).putExtra(MainActivity.EXTRA_VISION, "off"))
+                        startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT).putExtra(MainActivity.EXTRA_VISION, "holo"))
                     } catch (e: Exception) {
                     }
                 }
@@ -800,7 +802,17 @@ class NoorService : Service() {
         }, delay)
     }
 
+    private fun online(): Boolean {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        val n = cm.activeNetwork ?: return false
+        return cm.getNetworkCapabilities(n)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+    }
+
     private fun ask(textIn: String, pic: String = "") {
+        if (prefs().getBoolean("netguard", false) && !online()) {
+            Chat.add("noor", "Net nahi hai, isliye Noor so rahi hai.")
+            return
+        }
         var text = textIn
         if (!text.startsWith("(SCREEN")) {
             lookDepth = 0

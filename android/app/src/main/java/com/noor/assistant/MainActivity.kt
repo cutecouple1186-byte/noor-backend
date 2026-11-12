@@ -90,7 +90,7 @@ class MainActivity : Activity() {
     private lateinit var memoryPage: View
     private lateinit var chatPage: View
     private lateinit var toolsPage: View
-    private val navIdx = listOf(0, 7, 8, -1)
+    private val navIdx = listOf(0, 9, 7, 8, -1)
     private lateinit var navBar: View
     private lateinit var skillsPic: PicPage
     private lateinit var settingsPic: PicPage
@@ -196,6 +196,8 @@ class MainActivity : Activity() {
         chatPage = buildChat()
         skillsPage = buildSkills()
         buildPicPages()
+        holoPage = HoloPageView(this)
+        holoPage.onAction = { if (it == "holo_clear") Hud.put(null) }
         settingsPage = buildSettings()
         pages.addView(homePage, FrameLayout.LayoutParams(MATCH, MATCH))
         pages.addView(visionPage, FrameLayout.LayoutParams(MATCH, MATCH))
@@ -206,6 +208,7 @@ class MainActivity : Activity() {
         pages.addView(skillsPage, FrameLayout.LayoutParams(MATCH, MATCH))
         pages.addView(skillsPic, FrameLayout.LayoutParams(MATCH, MATCH))
         pages.addView(settingsPic, FrameLayout.LayoutParams(MATCH, MATCH))
+        pages.addView(holoPage, FrameLayout.LayoutParams(MATCH, MATCH))
 
         root.addView(pages, lp(MATCH, 0, 1f))
         navBar = buildNav()
@@ -232,6 +235,7 @@ class MainActivity : Activity() {
         setIntent(intent)
         when (intent?.getStringExtra(EXTRA_VISION)) {
             "on" -> show(1)
+            "holo" -> show(9)
             "off" -> {
                 show(0)
                 web?.destroy()
@@ -286,6 +290,7 @@ class MainActivity : Activity() {
         }
 
         bar.addView(item("⌂\nHome", 0), lp(0, WRAP, 1f))
+        bar.addView(item("🔷\nHologram", 9), lp(0, WRAP, 1f))
         bar.addView(item("▦\nTools", 7), lp(0, WRAP, 1f))
 
         micBtn = tv("🎙", 26f, Color.WHITE)
@@ -313,7 +318,8 @@ class MainActivity : Activity() {
         if (idx == 6) refreshSkills()
         skillsPic.visibility = if (idx == 7) View.VISIBLE else View.GONE
         settingsPic.visibility = if (idx == 8) View.VISIBLE else View.GONE
-        navBar.visibility = if (idx == 0) View.GONE else View.VISIBLE
+        holoPage.visibility = if (idx == 9) View.VISIBLE else View.GONE
+        navBar.visibility = View.VISIBLE
         if (idx == 8) settingsPic.invalidate()
         for (i in navItems.indices) navItems[i].setTextColor(if (navIdx[i] == idx) CYAN else MUTED)
         if (idx == 1) openVision()
@@ -553,17 +559,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun placeChars(animate: Boolean) {
-        val m = hud.mainRect
-        if (m.width() < 10f) return
-        val sz = m.width()
-        for ((v, isRox) in listOf(holoRox to true, holoNoor to false)) {
-            val r = if (isRox == Persona.isRox) m else hud.sideRect
-            val sc = r.width() / sz
-            if (animate) v.animate().x(r.left).y(r.top).scaleX(sc).scaleY(sc).setDuration(700).start()
-            else { v.x = r.left; v.y = r.top; v.scaleX = sc; v.scaleY = sc }
-        }
-    }
+    private fun placeChars(animate: Boolean) {}
 
     private var newsLink = ""
     private var newsList = ArrayList<Pair<String, String>>()
@@ -623,10 +619,8 @@ class MainActivity : Activity() {
             "swap" -> { Persona.set(this, if (Persona.isRox) "noor" else "rox"); refreshHome() }
             "main" -> talkNow()
             "live" -> toggleService()
+            "netguard" -> { val v = !prefs().getBoolean("netguard", false); prefs().edit().putBoolean("netguard", v).apply(); hud.netGuard = v; Toast.makeText(this, if (v) "Net na ho to Noor band: ON" else "Net na ho to Noor band: OFF", Toast.LENGTH_SHORT).show() }
             "nav0" -> show(0)
-            "nav1" -> show(7)
-            "nav2" -> show(8)
-            "nav3" -> showMore()
             "holo_clear" -> Hud.put(null)
         }
     }
@@ -634,22 +628,17 @@ class MainActivity : Activity() {
     private fun buildHud(): View {
         val f = FrameLayout(this)
         hud = HudView(this)
-        hud.quality = prefs().getInt("gfx", 1); hud.focus = 0.4f + prefs().getInt("focus", 40) / 100f
         f.addView(hud, FrameLayout.LayoutParams(MATCH, MATCH))
         holoRox = HoloView(this); holoRox.setPersona(true)
         holoNoor = HoloView(this); holoNoor.setPersona(false)
-        f.addView(holoRox, FrameLayout.LayoutParams(10, 10))
-        f.addView(holoNoor, FrameLayout.LayoutParams(10, 10))
-        holoRox.isClickable = false; holoNoor.isClickable = false
         hud.onAction = { hudAction(it) }
-        hud.onRects = { m, _ ->
-            for (v in listOf(holoRox, holoNoor)) { val q = v.layoutParams; q.width = m.width().toInt(); q.height = m.width().toInt(); v.layoutParams = q; v.pivotX = 0f; v.pivotY = 0f }
-            f.post { placeChars(false) }
-        }
+        hud.netGuard = prefs().getBoolean("netguard", false)
         Thread { val w = Jarvis.weather(this); if (w != null) runOnUiThread { hud.weather = w } }.start()
         loadNews()
         return f
     }
+
+    private lateinit var holoPage: HoloPageView
 
     private lateinit var skillsPage: View
     private lateinit var skillsView: SkillsView
