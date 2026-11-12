@@ -529,6 +529,12 @@ class MainActivity : Activity() {
                 hud.batt = (getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager).getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
                 val sf = android.os.StatFs(android.os.Environment.getDataDirectory().path)
                 hud.disk = (100 - sf.availableBytes * 100 / sf.totalBytes).toInt()
+                try {
+                    val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+                    val nw = cm.activeNetwork
+                    hud.netOnline = nw != null && cm.getNetworkCapabilities(nw)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+                } catch (e: Exception) {
+                }
                 if (newsList.isNotEmpty()) {
                     val n = newsList[newsI % newsList.size]; hud.news = n.first; newsLink = n.second; newsI++
                 }

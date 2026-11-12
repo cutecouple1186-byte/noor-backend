@@ -30,6 +30,7 @@ class HudView(ctx: Context) : View(ctx) {
     var liveOn = false
     var quality = 1
     var netGuard = false
+    var netOnline = true
     private val rNet = RectF()
     var focus = 1f
     var onAction: (String) -> Unit = {}
@@ -309,6 +310,7 @@ class HudView(ctx: Context) : View(ctx) {
         for (i in 1..3) c.drawArc(RectF(rNet.centerX() - rNet.width() * 0.13f * i, rNet.centerY() - rNet.width() * 0.13f * i + d(4f), rNet.centerX() + rNet.width() * 0.13f * i, rNet.centerY() + rNet.width() * 0.13f * i + d(4f)), 225f, 90f, false, p)
         p.style = Paint.Style.FILL; p.color = if (netGuard) Color.parseColor("#34D399") else Color.parseColor("#EF4444")
         c.drawCircle(rNet.right - d(7f), rNet.top + d(7f), d(3.5f), p)
+        txt(c, if (netOnline) "LIVE" else "OFFLINE", rNet.centerX(), rNet.bottom - d(5f), 8.5f, if (netOnline) Color.parseColor("#34D399") else Color.parseColor("#EF4444"), Paint.Align.CENTER)
         postInvalidateOnAnimation()
     }
 

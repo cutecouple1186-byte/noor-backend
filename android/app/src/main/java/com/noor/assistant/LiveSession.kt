@@ -75,8 +75,9 @@ class LiveSession(
                 c.setRequestProperty("x-app-token", token)
                 c.connectTimeout = 8000
                 c.readTimeout = 10000
-                if (c.responseCode != 200) {
-                    end("Live ki settings nahi mil sakin. Password check karein.")
+                val rc = c.responseCode
+                if (rc != 200) {
+                    end("Live ki settings nahi mil sakin (server code $rc). " + (if (rc == 401) "Password check karein." else "Server (Vercel) check karein."))
                     return@Thread
                 }
                 val j = JSONObject(c.inputStream.bufferedReader().use { it.readText() })
@@ -96,7 +97,7 @@ class LiveSession(
                 }
                 connect(0)
             } catch (e: Exception) {
-                end("Live shuru nahi ho saka: internet check karein.")
+                end("Live shuru nahi ho saka: " + (e.message ?: e.javaClass.simpleName).take(90))
             }
         }.start()
     }

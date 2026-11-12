@@ -63,7 +63,7 @@ object Net {
                     last
                 }
             } catch (e: Exception) {
-                last = fail("Internet check karein, server se connection nahi ho paya.")
+                last = fail("Server se jud nahi paya: " + (e.message ?: e.javaClass.simpleName).take(80))
             }
         }
         return last
