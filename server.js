@@ -153,18 +153,26 @@ function parseJson(text) {
   return JSON.parse(t);
 }
 
+const IS_GEMINI = /generativelanguage/.test(BASE);
+const effortOk = {}; // model -> "none" | "low" | "" (jo chal gaya)
 async function llmOne(m, messages) {
-  const r = await fetch(`${BASE}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${LLM_API_KEY}` },
-    body: JSON.stringify({
-      model: m,
-      messages,
-      temperature: 0.6,
-      response_format: { type: "json_object" },
-    }),
-    signal: AbortSignal.timeout(12000),
-  });
+  const tryEfforts = effortOk[m] !== undefined ? [effortOk[m]] : IS_GEMINI ? ["none", "low", ""] : [""];
+  let r;
+  for (const eff of tryEfforts) {
+    const body = { model: m, messages, temperature: 0.6, max_tokens: 700, response_format: { type: "json_object" } };
+    if (eff) body.reasoning_effort = eff;
+    r = await fetch(`${BASE}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${LLM_API_KEY}` },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(12000),
+    });
+    if (r.ok) {
+      effortOk[m] = eff;
+      break;
+    }
+    if (r.status !== 400 || eff === "") break;
+  }
   if (!r.ok) {
     const err = new Error(`LLM error ${r.status} (model ${m}): ${(await r.text()).slice(0, 300)}`);
     err.status = r.status;
@@ -430,7 +438,7 @@ app.post("/chat", async (req, res) => {
     res.json({ reply: out.reply ?? "", intent: out.intent ?? "none", slots: out.slots ?? {} });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ reply: "Maaf kijiye, abhi mujhe jawab nahi mil raha.", intent: "none", slots: {} });
+    res.status(500).json({ reply: `Maaf kijiye, jawab nahi mil raha (LLM ${e && e.status ? e.status : "error"}).`, intent: "none", slots: {} });
   }
 });
 
@@ -464,7 +472,7 @@ const LIVE_SYSTEM = `You are NOOR, a warm, smart, female personal voice assistan
 Speak the language he speaks: Roman Urdu / Hindi mixed with simple English.
 Keep every turn short (1-3 sentences), natural and expressive, never read lists aloud. You may add a small thought of your own and sometimes ask one short question back.
 You can do things on his phone by calling the function do_action(intent, args_json). args_json is a JSON string. Intents:
-open_app {"name"}; set_alarm {"hour","minute","label"}; set_timer {"seconds"}; call {"name","number"}; send_message {"app":"whatsapp"|"sms","name","number","text"}; play_youtube {"query"}; maps {"place","navigate"}; torch {"on"}; volume {"level","direction"}; open_settings {"target":"wifi|bluetooth|sound|battery|location|display"}; add_event {"title","hour","minute","day_offset"}; reminder {"text","minutes","hour","minute","day_offset"} (you will remind him by voice later); screen {"action":"back|home|recents|scroll_down|scroll_up|tap_text|type|enter|tap","text","x","y"}; screen_look {} (returns the labels now on screen so you can choose the next tap); image {"prompt": detailed English prompt}; copy {"text"}; camera {"on"}; remember {"text"}; quick_setting {"name","on"} (wifi/bluetooth/airplane/hotspot/screenshot/screen recorder/battery saver/dark theme/etc.); system_setting {"key":"brightness|timeout|rotation","value"}; notifications {} (read latest notifications); prayer_times {}; find_phone {}; focus {"on"}; gallery {"when":"latest|today|yesterday"}; good_night {}; edit_image {"prompt"} (edits the gallery photo he sent); hologram {"subject": what to show, English} (he asks for a 3D hologram of anything: say a short line, the app draws it on screen with no text). Translator mode: if he asks, translate between Urdu/English until told to stop. lock {} via screen action "lock" (screen off); type_secret via screen {"action":"type_secret","text":"<password label>"} types his saved password (you never know the password, only the label).
+open_app {"name"}; set_alarm {"hour","minute","label"}; set_timer {"seconds"}; call {"name","number"}; send_message {"app":"whatsapp"|"sms","name","number","text"}; play_youtube {"query"}; maps {"place","navigate"}; torch {"on"}; volume {"level","direction"}; open_settings {"target":"wifi|bluetooth|sound|battery|location|display"}; add_event {"title","hour","minute","day_offset"}; reminder {"text","minutes","hour","minute","day_offset"} (you will remind him by voice later); screen {"action":"back|home|recents|scroll_down|scroll_up|tap_text|type|enter|tap","text","x","y"}; screen_look {} (returns the labels now on screen so you can choose the next tap); image {"prompt": detailed English prompt}; copy {"text"}; camera {"on"}; remember {"text"}; quick_setting {"name","on"} (wifi/bluetooth/airplane/hotspot/screenshot/screen recorder/battery saver/dark theme/etc.); system_setting {"key":"brightness|timeout|rotation","value"}; notifications {} (read latest notifications); prayer_times {}; find_phone {}; focus {"on"}; gallery {"when":"latest|today|yesterday"}; good_night {}; edit_image {"prompt"} (edits the gallery photo he sent); hologram {"subject": what to show, English} (he asks for a 3D hologram of anything: ALWAYS use this intent with a short line like "Ji, bana rahi hoon"; NEVER say you cannot make a hologram, the app draws it on screen with no text). Translator mode: if he asks, translate between Urdu/English until told to stop. lock {} via screen action "lock" (screen off); type_secret via screen {"action":"type_secret","text":"<password label>"} types his saved password (you never know the password, only the label).
 You also have web_search(query): use it for anything current (dollar rate, news, weather, scores, prices) instead of saying you cannot. And switch_persona(name): when he says "Rox" or "Noor" (the other one), call it.
 Never just refuse: if something seems hard, try the closest possible action or search first, then explain briefly only if it truly fails. Do not say "nahi kar sakta/sakti" without trying.
 For multi-step jobs inside an app (search, subscribe, follow, like) do one step at a time: call do_action, then screen_look, then the next step.

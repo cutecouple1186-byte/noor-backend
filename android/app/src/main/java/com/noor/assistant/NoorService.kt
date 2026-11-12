@@ -131,12 +131,28 @@ class NoorService : Service() {
         val ls = LiveSession(
             base, token, memories().joinToString("; "), prefs().getInt("gate", 900),
             { st -> main.post { liveLast = System.currentTimeMillis(); if (liveOn) setState(st) } },
-            { who, t -> main.post { liveLast = System.currentTimeMillis(); Chat.add(who, t) } },
+            { who, t -> main.post {
+                liveLast = System.currentTimeMillis(); Chat.add(who, t)
+                if (who == "me" && liveOn) {
+                    val lw = t.lowercase()
+                    val r1 = roxRe.find(lw); val n1 = wakeRe.find(lw)
+                    if (r1 != null && n1 == null && !Persona.isRox) liveSwitch(true)
+                    else if (n1 != null && r1 == null && Persona.isRox) liveSwitch(false)
+                }
+            } },
             { name, args, cb -> main.post { liveTool(name, args, cb) } },
             { msg -> main.post { endLive(msg) } }
         )
         live = ls
         ls.start()
+    }
+
+    private fun liveSwitch(toRox: Boolean) {
+        Persona.set(this, if (toRox) "rox" else "noor")
+        main.postDelayed({
+            live?.end(if (toRox) "Rox aa gaya." else "Noor aa gayi.")
+            main.postDelayed({ startLive() }, 1500)
+        }, 900)
     }
 
     @Volatile private var liveLast = 0L
@@ -864,8 +880,12 @@ class NoorService : Service() {
 
     private fun onResult(userText: String, j: JSONObject) {
         val reply = j.optString("reply")
-        val intent = j.optString("intent", "none")
-        val slots = j.optJSONObject("slots") ?: JSONObject()
+        var intent = j.optString("intent", "none")
+        var slots = j.optJSONObject("slots") ?: JSONObject()
+        if ((intent == "none" || intent == "") && Regex("holo ?gram|होलोग्राम|ہولوگرام|3 ?d", RegexOption.IGNORE_CASE).containsMatchIn(userText)) {
+            intent = "hologram"
+            slots = JSONObject().put("subject", userText.replace(Regex("(?i)(noor|rox|ka|ki|ke|ek|bana|banao|do|de|dikhao|3 ?d|holo ?gram|hologram|please|plz|\\s)+"), " ").trim().ifBlank { userText })
+        }
         if (intent == "none" && slots.optBoolean("done", !reply.trim().endsWith("?"))) pendingGoal = ""
         history.add(Pair("user", userText))
         history.add(Pair("assistant", reply))
