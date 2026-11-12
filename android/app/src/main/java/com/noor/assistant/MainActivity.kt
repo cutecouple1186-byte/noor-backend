@@ -213,6 +213,15 @@ class MainActivity : Activity() {
         top.addView(root, FrameLayout.LayoutParams(MATCH, MATCH))
         setContentView(top)
         show(0)
+        try {
+            val cf = java.io.File(filesDir, "crash.txt")
+            if (cf.exists()) {
+                val txt = cf.readText()
+                cf.delete()
+                android.app.AlertDialog.Builder(this).setTitle("Pichli baar app band hui").setMessage(txt.take(700)).setPositiveButton("Theek hai", null).show()
+            }
+        } catch (e: Exception) {
+        }
 
         // Phone on hone par BootReceiver is screen ko kholta hai; yahan se Noor shuru karke screen peeche kar dete hain.
         if (intent?.getBooleanExtra(EXTRA_AUTOSTART, false) == true) {

@@ -278,7 +278,7 @@ class LiveSession(
             AudioFormat.ENCODING_PCM_16BIT, maxOf(minIn, 6400)
         )
         rec = r
-        halfDuplex = !AcousticEchoCanceler.isAvailable()
+        halfDuplex = true
         try {
             if (AcousticEchoCanceler.isAvailable()) AcousticEchoCanceler.create(r.audioSessionId)?.enabled = true
             if (NoiseSuppressor.isAvailable()) NoiseSuppressor.create(r.audioSessionId)?.enabled = true
@@ -310,10 +310,11 @@ class LiveSession(
                 val buf = ByteArray(3200)
                 var floor = 250.0
                 var openUntil = 0L
+                var loudRun = 0
                 while (!closed) {
                     val n = r.read(buf, 0, buf.size)
                     if (n <= 0) continue
-                    if (halfDuplex && (playing || q.isNotEmpty())) continue
+                    if (halfDuplex && (playing || q.isNotEmpty() || System.currentTimeMillis() - lastAudioAt < 700)) continue
                     // Awaaz filter: sirf paas se, zor se bolne wali awaaz aage jaye. Door ka music/TV chup.
                     if (gateMin > 0) {
                         var sum = 0.0
@@ -326,7 +327,7 @@ class LiveSession(
                         val rms = Math.sqrt(sum / maxOf(1, n / 2))
                         val now = System.currentTimeMillis()
                         if (rms < floor * 2) floor = maxOf(80.0, floor * 0.95 + rms * 0.05)
-                        if (rms > maxOf(floor * 3.0, gateMin.toDouble())) openUntil = now + 600
+                        if (rms > maxOf(floor * 3.5, gateMin.toDouble())) { loudRun++; if (loudRun >= 2) openUntil = now + 700 } else loudRun = 0
                         if (now > openUntil) java.util.Arrays.fill(buf, 0, n, 0.toByte())
                     }
                     val msg = JSONObject().put(
