@@ -109,6 +109,10 @@ class HoloPageView(ctx: Context) : View(ctx) {
             c.drawLine(xr.centerX() - d(6f), xr.centerY() - d(6f), xr.centerX() + d(6f), xr.centerY() + d(6f), p)
             c.drawLine(xr.centerX() + d(6f), xr.centerY() - d(6f), xr.centerX() - d(6f), xr.centerY() + d(6f), p)
         }
+        if (!Hud.busy && Hud.holo == null) {
+            p.style = Paint.Style.FILL; p.textAlign = Paint.Align.CENTER; p.textSize = d(14f); p.color = Color.parseColor("#9FE8FF")
+            c.drawText(if (Hud.err.isNotBlank()) Hud.err else "Noor se bolein: \"Noor, tiger ka hologram banao\"", w / 2f, h * 0.22f, p)
+        }
         if (Hud.busy) {
             c.save(); c.rotate(t * 220f, cx, h * 0.45f)
             p.style = Paint.Style.STROKE; p.strokeWidth = d(3.5f); p.color = cy

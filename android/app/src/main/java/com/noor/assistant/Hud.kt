@@ -6,6 +6,8 @@ import android.graphics.Bitmap
 object Hud {
     @Volatile var holo: Bitmap? = null
     @Volatile var busy = false
+    @Volatile var err = ""
+    @Volatile var onHoloPage = false
     var listener: (() -> Unit)? = null
 
     fun put(b0: Bitmap?) {

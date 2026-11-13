@@ -111,16 +111,21 @@ object Net {
     }
 
     /** Server se tasveer (bytes) lo. Na bane to null. */
+    @Volatile var holoErr = ""
+
     fun holo(base: String, token: String, subject: String): ByteArray? {
+        holoErr = ""
         return try {
             val c = open("$base/holo", token)
             c.connectTimeout = 8000
             c.readTimeout = 70000
             c.outputStream.use { it.write(JSONObject().put("subject", subject).toString().toByteArray(Charsets.UTF_8)) }
-            if (c.responseCode !in 200..299) return null
+            val code = c.responseCode
+            if (code !in 200..299) { holoErr = if (code == 404) "Server purana hai, /holo nahi mila" else "server code $code (Gemini image limit ho sakti hai)"; return null }
             val j = JSONObject(c.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
             android.util.Base64.decode(j.optString("image"), android.util.Base64.DEFAULT)
         } catch (e: Exception) {
+            holoErr = (e.message ?: e.javaClass.simpleName).take(80)
             null
         }
     }

@@ -725,6 +725,7 @@ class NoorService : Service() {
         val base = prefs().getString("url", MainActivity.DEFAULT_URL)!!.trim().trimEnd('/')
         val token = prefs().getString("token", "")!!
         Hud.busy = true
+        Hud.err = ""
         Hud.ping()
         Thread {
             val bytes = Net.holo(base, token, subject)
@@ -732,7 +733,8 @@ class NoorService : Service() {
             main.post {
                 Hud.busy = false
                 if (bmp == null) {
-                    Chat.add("noor", "Hologram nahi ban saka, dobara bolein.")
+                    Hud.err = "Hologram nahi ban saka: " + Net.holoErr.ifBlank { "tasveer nahi mili" }
+                    Chat.add("noor", Hud.err)
                     Hud.ping()
                 } else {
                     Hud.put(bmp)
@@ -882,6 +884,10 @@ class NoorService : Service() {
         val reply = j.optString("reply")
         var intent = j.optString("intent", "none")
         var slots = j.optJSONObject("slots") ?: JSONObject()
+        if (Hud.onHoloPage && (intent == "none" || intent == "" || intent == "image" || intent == "search") && userText.isNotBlank()) {
+            intent = "hologram"
+            slots = JSONObject().put("subject", userText.replace(Regex("(?i)\\b(noor|rox|banao|bana|do|de|dikhao|please|plz)\\b"), " ").trim().ifBlank { userText })
+        }
         if ((intent == "none" || intent == "") && Regex("holo ?gram|होलोग्राम|ہولوگرام|3 ?d", RegexOption.IGNORE_CASE).containsMatchIn(userText)) {
             intent = "hologram"
             slots = JSONObject().put("subject", userText.replace(Regex("(?i)(noor|rox|ka|ki|ke|ek|bana|banao|do|de|dikhao|3 ?d|holo ?gram|hologram|please|plz|\\s)+"), " ").trim().ifBlank { userText })

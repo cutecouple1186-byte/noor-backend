@@ -143,7 +143,7 @@ Only use "remember" if the user clearly asks you to remember something.`;
 const SYSTEM_BASE = SYSTEM.replace(/^You are NOOR[^\n]*\n/, "").replace(/^Use feminine grammar[^\n]*\n/m, "");
 
 // Agar pehla model masroof (503) ya band (404) ho to agla model try hota hai
-const FALLBACKS = (process.env.LLM_FALLBACK_MODELS || "gemini-flash-latest,gemini-flash-lite-latest,gemini-2.5-flash")
+const FALLBACKS = (process.env.LLM_FALLBACK_MODELS || "gemini-flash-latest,gemini-flash-lite-latest,gemini-2.5-flash,gemini-2.5-flash-lite,gemini-2.0-flash")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
@@ -165,7 +165,7 @@ async function llmOne(m, messages) {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${LLM_API_KEY}` },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(9000),
     });
     if (r.ok) {
       effortOk[m] = eff;
@@ -185,6 +185,17 @@ async function llmOne(m, messages) {
 // Tez jawab ke liye: pehla model chalta hai, 2.5 second mein na aaye to agla model bhi saath mein shuru,
 // jo pehle sahi jawab de wahi le lo.
 async function llm(messages) {
+  try {
+    return await llmRound(messages);
+  } catch (e) {
+    if (e && (e.status === 503 || e.status === 429 || e.status === 500 || !e.status)) {
+      await new Promise((r) => setTimeout(r, 1200));
+      return await llmRound(messages);
+    }
+    throw e;
+  }
+}
+async function llmRound(messages) {
   const models = [MODEL, ...FALLBACKS.filter((m) => m !== MODEL)];
   return new Promise((resolve, reject) => {
     let started = 0;
@@ -665,3 +676,50 @@ app.post("/tts", async (req, res) => {
 
 app.listen(process.env.PORT || 3000, () => console.log("NOOR backend running"));
       
+
+
+// ---- App ka "System" page: sab kuch check karke batata hai ----
+app.get("/diag", async (req, res) => {
+  if (APP_TOKEN && req.get("x-app-token") !== APP_TOKEN) return res.status(401).json({});
+  const t0 = Date.now();
+  const out = { server: { ok: true }, models: { chat: MODEL, fallbacks: FALLBACKS } };
+  const jobs = [];
+  jobs.push((async () => {
+    const t = Date.now();
+    try {
+      const o = await llmRound([{ role: "system", content: 'Return JSON {"reply":"ok","intent":"none","slots":{}}' }, { role: "user", content: "hi" }]);
+      out.llm = { ok: !!o, ms: Date.now() - t };
+    } catch (e) {
+      out.llm = { ok: false, ms: Date.now() - t, err: String(e.message || e).slice(0, 160), status: e.status || 0 };
+    }
+  })());
+  jobs.push((async () => {
+    const t = Date.now();
+    if (!BASE.includes("generativelanguage.googleapis.com")) { out.tts = { ok: false, err: "Gemini nahi hai" }; return; }
+    try {
+      const m = TTS_MODELS[0];
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": LLM_API_KEY },
+        body: JSON.stringify({ model: m, input: [{ type: "user_input", content: [{ type: "text", text: "ok" }] }], response_format: { type: "audio" }, generation_config: { speech_config: [{ voice: TTS_VOICE }] } }),
+        signal: AbortSignal.timeout(9000),
+      });
+      out.tts = r.ok ? { ok: true, ms: Date.now() - t, model: m } : { ok: false, ms: Date.now() - t, err: `${m}: ${r.status} ${(await r.text()).slice(0, 100)}` };
+    } catch (e) {
+      out.tts = { ok: false, err: String(e.message || e).slice(0, 120) };
+    }
+  })());
+  jobs.push((async () => {
+    out.live = { ok: !!LLM_API_KEY, models: (process.env.LIVE_MODELS || "default").slice(0, 120) };
+    out.image = { ok: !!LLM_API_KEY, models: (process.env.IMAGE_MODELS || "gemini-2.5-flash-image").slice(0, 120) };
+    out.search = { ok: !!TAVILY_API_KEY, note: TAVILY_API_KEY ? "Tavily" : "Tavily key nahi, Google se kaam chalta hai" };
+    if (!KV_URL || !KV_TOKEN) out.memory = { ok: false, err: "Upstash connect nahi (yaadein cloud mein nahi bachengi)" };
+    else {
+      const v = await kv(["PING"]);
+      out.memory = v ? { ok: true } : { ok: false, err: "Upstash jawab nahi de raha" };
+    }
+  })());
+  await Promise.all(jobs);
+  out.ms = Date.now() - t0;
+  res.json(out);
+});

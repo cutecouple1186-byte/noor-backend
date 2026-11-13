@@ -90,7 +90,7 @@ class MainActivity : Activity() {
     private lateinit var memoryPage: View
     private lateinit var chatPage: View
     private lateinit var toolsPage: View
-    private val navIdx = listOf(0, 9, 6, 3, -1)
+    private val navIdx = listOf(0, 9, 10, 6, 3, -1)
     private lateinit var navBar: View
     private lateinit var chatScroll: ScrollView
     private lateinit var settingsPage: View
@@ -205,6 +205,9 @@ class MainActivity : Activity() {
         pages.addView(settingsPage, FrameLayout.LayoutParams(MATCH, MATCH))
         pages.addView(skillsPage, FrameLayout.LayoutParams(MATCH, MATCH))
         pages.addView(holoPage, FrameLayout.LayoutParams(MATCH, MATCH))
+        sysPage = SysPage(this)
+        sysPage.visibility = View.GONE
+        pages.addView(sysPage, FrameLayout.LayoutParams(MATCH, MATCH))
 
         root.addView(pages, lp(MATCH, 0, 1f))
         navBar = buildNav()
@@ -296,6 +299,7 @@ class MainActivity : Activity() {
 
         bar.addView(item("⌂\nHome", 0), lp(0, WRAP, 1f))
         bar.addView(item("🔷\nHologram", 9), lp(0, WRAP, 1f))
+        bar.addView(item("◉\nSystem", 10), lp(0, WRAP, 1f))
         bar.addView(item("▦\nTools", 6), lp(0, WRAP, 1f))
 
         micBtn = tv("🎙", 26f, Color.WHITE)
@@ -322,6 +326,9 @@ class MainActivity : Activity() {
         skillsPage.visibility = if (idx == 6) View.VISIBLE else View.GONE
         if (idx == 6) refreshSkills()
         holoPage.visibility = if (idx == 9) View.VISIBLE else View.GONE
+        sysPage.visibility = if (idx == 10) View.VISIBLE else View.GONE
+        Hud.onHoloPage = idx == 9
+        if (idx == 10) sysPage.refresh()
         navBar.visibility = View.VISIBLE
         for (i in navItems.indices) navItems[i].setTextColor(if (navIdx[i] == idx) CYAN else MUTED)
         if (idx == 1) openVision()
@@ -582,6 +589,7 @@ class MainActivity : Activity() {
     }
 
     private lateinit var holoPage: HoloPageView
+    private lateinit var sysPage: SysPage
 
     private lateinit var skillsPage: View
     private lateinit var skillsView: SkillsView
