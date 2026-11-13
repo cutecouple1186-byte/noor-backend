@@ -159,7 +159,7 @@ class NoorService : Service() {
     private val idleCheck = object : Runnable {
         override fun run() {
             if (!liveOn) return
-            if (System.currentTimeMillis() - liveLast > 45000) live?.end("Koi awaaz nahi aayi, Live band. Hello ${Persona.title} bolein.")
+            if (System.currentTimeMillis() - liveLast > (if (prefs().getBoolean("callmode", true)) 240000 else 45000)) live?.end("Koi awaaz nahi aayi, Live band. Hello ${Persona.title} bolein.")
             else main.postDelayed(this, 10000)
         }
     }
@@ -719,7 +719,7 @@ class NoorService : Service() {
     private fun makeHolo(subject: String) {
         if (subject.isNotBlank()) try { startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT).putExtra(MainActivity.EXTRA_VISION, "holo")) } catch (e: Exception) {}
         if (subject.isBlank() || subject.lowercase() in listOf("clear", "none", "off", "band")) {
-            Hud.put(null)
+            Hud.put3d(null); Hud.put(null)
             return
         }
         val base = prefs().getString("url", MainActivity.DEFAULT_URL)!!.trim().trimEnd('/')
@@ -728,6 +728,11 @@ class NoorService : Service() {
         Hud.err = ""
         Hud.ping()
         Thread {
+            val m3 = Net.holo3d(base, token, subject)
+            if (m3 != null) {
+                main.post { Hud.busy = false; Hud.put3d(m3) }
+                return@Thread
+            }
             val bytes = Net.holo(base, token, subject)
             val bmp = if (bytes != null && bytes.size > 1000) android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) else null
             main.post {
@@ -992,19 +997,38 @@ class NoorService : Service() {
         val base = prefs().getString("url", MainActivity.DEFAULT_URL)!!.trim().trimEnd('/')
         val token = prefs().getString("token", "")!!
         Thread {
-            val f = try {
-                Net.tts(base, token, text, cacheDir)
-            } catch (e: Exception) {
-                null
+            val sentences = text.split(Regex("(?<=[.!?।؟])\\s+")).filter { it.isNotBlank() }
+            val parts = ArrayList<String>()
+            if (sentences.size >= 2) {
+                var first = sentences[0]; var k = 1
+                while (first.length < 22 && k < sentences.size - 1) { first += " " + sentences[k]; k++ }
+                parts.add(first); parts.add(sentences.drop(k).joinToString(" "))
+            } else parts.add(text)
+            val files = arrayOfNulls<java.io.File>(parts.size)
+            val ths = parts.mapIndexed { i, pt ->
+                Thread { files[i] = try { Net.tts(base, token, pt, cacheDir, "noor_tts_$i.wav") } catch (e: Exception) { null } }.also { it.start() }
             }
+            ths[0].join()
             main.post {
                 if (!running) return@post
-                if (f != null) playFile(f, text) else speakLocal(text)
+                val f0 = files[0]
+                if (f0 == null) { speakLocal(text); return@post }
+                fun chain(i: Int) {
+                    val f = files[i] ?: return speakLocal(parts.drop(i).joinToString(" "))
+                    val nxt: (() -> Unit)? = if (i + 1 < parts.size) ({
+                        Thread {
+                            ths[i + 1].join()
+                            main.post { if (speaking && g == speakGen) chain(i + 1) }
+                        }.start()
+                    }) else null
+                    playFile(f, parts[i], nxt)
+                }
+                chain(0)
             }
         }.start()
     }
 
-    private fun playFile(f: java.io.File, text: String) {
+    private fun playFile(f: java.io.File, text: String, next: (() -> Unit)? = null) {
         try {
             player?.release()
             val p = MediaPlayer()
@@ -1018,7 +1042,7 @@ class NoorService : Service() {
             p.setOnCompletionListener {
                 it.release()
                 player = null
-                doneSpeaking()
+                if (next != null) next() else doneSpeaking()
             }
             p.setOnErrorListener { mp, _, _ ->
                 mp.release()

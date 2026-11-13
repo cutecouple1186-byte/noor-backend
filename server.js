@@ -723,3 +723,21 @@ app.get("/diag", async (req, res) => {
   out.ms = Date.now() - t0;
   res.json(out);
 });
+
+
+// ---- Asli 3D hologram: LLM chhote shapes (box/sphere/...) ka model banata hai, app usay ghuma kar dikhati hai ----
+app.post("/holo3d", async (req, res) => {
+  if (APP_TOKEN && req.get("x-app-token") !== APP_TOKEN) return res.status(401).json({});
+  const subject = String((req.body && req.body.subject) || "").slice(0, 200).trim();
+  if (!subject) return res.status(400).json({});
+  const sys = `You design simple 3D wireframe hologram models out of primitive shapes. Return ONLY JSON: {"name": string, "parts": [ {"n": part name, "s": "box"|"sphere"|"cylinder"|"cone"|"torus", "p": [x,y,z], "z": [sx,sy,sz], "r": [rx,ry,rz]} ]}.
+Rules: y is up, x right, z toward viewer. The whole object must fit inside the cube -1..1 and be centered. "z" is the half-size along each axis (cylinder and cone axis is y; torus lies in the xz plane with sx = outer radius, sy = tube radius). "r" is rotation in degrees (optional, default 0). Use 12 to 40 parts so the object is clearly recognizable with its real proportions and main features (animals: body, head, legs, tail, ears; vehicles: body, cabin, wheels; buildings, planets with rings, robots, humans, etc.). Mirror symmetrical parts explicitly. Order parts so the main body comes first. No text outside JSON.`;
+  try {
+    const o = await llm([{ role: "system", content: sys }, { role: "user", content: `Object: ${subject}` }]);
+    const parts = Array.isArray(o.parts) ? o.parts.slice(0, 48) : [];
+    if (!parts.length) return res.status(502).json({ err: "model khali" });
+    res.json({ name: String(o.name || subject), parts });
+  } catch (e) {
+    res.status(502).json({ err: String(e.message || e).slice(0, 120) });
+  }
+});

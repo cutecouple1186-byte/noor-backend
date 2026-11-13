@@ -72,7 +72,7 @@ object Net {
     /** Server ki Gemini awaaz (WAV). Na chale to null, tab phone ki apni awaaz use hoti hai. */
     @Volatile var ttsErr = ""
 
-    fun tts(base: String, token: String, text: String, dir: File): File? {
+    fun tts(base: String, token: String, text: String, dir: File, name: String = "noor_tts.wav"): File? {
         for (attempt in 0..1) {
             try {
                 val c = open("$base/tts", token)
@@ -86,7 +86,7 @@ object Net {
                     ttsErr = "server code $code"
                     continue
                 }
-                val f = File(dir, "noor_tts.wav")
+                val f = File(dir, name)
                 c.inputStream.use { i -> f.outputStream().use { o -> i.copyTo(o) } }
                 if (f.length() >= 100) { ttsErr = ""; return f }
                 ttsErr = "khali awaaz"
@@ -124,6 +124,22 @@ object Net {
             if (code !in 200..299) { holoErr = if (code == 404) "Server purana hai, /holo nahi mila" else "server code $code (Gemini image limit ho sakti hai)"; return null }
             val j = JSONObject(c.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
             android.util.Base64.decode(j.optString("image"), android.util.Base64.DEFAULT)
+        } catch (e: Exception) {
+            holoErr = (e.message ?: e.javaClass.simpleName).take(80)
+            null
+        }
+    }
+
+    fun holo3d(base: String, token: String, subject: String): Holo3D? {
+        return try {
+            val c = open("$base/holo3d", token)
+            c.connectTimeout = 8000
+            c.readTimeout = 25000
+            c.outputStream.use { it.write(JSONObject().put("subject", subject).toString().toByteArray(Charsets.UTF_8)) }
+            val code = c.responseCode
+            val txt = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+            if (code !in 200..299) { holoErr = if (code == 404) "Server purana hai (/holo3d nahi mila)" else "3D model nahi bana (code $code) " + (try { JSONObject(txt).optString("err") } catch (e: Exception) { "" }); return null }
+            Holo3D.fromJson(JSONObject(txt))
         } catch (e: Exception) {
             holoErr = (e.message ?: e.javaClass.simpleName).take(80)
             null

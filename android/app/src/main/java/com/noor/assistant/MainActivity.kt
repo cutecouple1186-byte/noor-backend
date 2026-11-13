@@ -125,6 +125,7 @@ class MainActivity : Activity() {
     private lateinit var pttBtn: Button
     private lateinit var gateBtn: Button
     private lateinit var netBtn: Button
+    private lateinit var callBtn: Button
     private lateinit var liveBtn: android.widget.TextView
     private lateinit var urlEt: EditText
     private lateinit var tokEt: EditText
@@ -195,7 +196,7 @@ class MainActivity : Activity() {
         chatPage = buildChat()
         skillsPage = buildSkills()
         holoPage = HoloPageView(this)
-        holoPage.onAction = { if (it == "holo_clear") Hud.put(null) }
+        holoPage.onAction = { if (it == "holo_clear") { Hud.put3d(null); Hud.put(null) } }
         settingsPage = buildSettings()
         pages.addView(homePage, FrameLayout.LayoutParams(MATCH, MATCH))
         pages.addView(visionPage, FrameLayout.LayoutParams(MATCH, MATCH))
@@ -1186,6 +1187,11 @@ class MainActivity : Activity() {
             refreshSettings()
         }
         cur.addView(netBtn)
+        callBtn = button("") {
+            prefs().edit().putBoolean("callmode", !prefs().getBoolean("callmode", true)).apply()
+            refreshSettings()
+        }
+        cur.addView(callBtn)
         autoBtn = button("") {
             prefs().edit().putBoolean("autostart", !prefs().getBoolean("autostart", true)).apply()
             refreshSettings()
@@ -1283,6 +1289,7 @@ class MainActivity : Activity() {
         statusTv.text = "Mic: ${m(mic)}   Camera: ${m(cam)}   Contacts: ${m(contacts)}" +
             "\nApps kholna: ${m(overlay)}   Background: ${m(battery)}"
         val auto = prefs().getBoolean("autostart", true)
+        callBtn.text = "Call jaisi baat (Live, mic ON hote hi): " + (if (prefs().getBoolean("callmode", true)) "ON" else "OFF") + "  (dabakar badlein)"
         netBtn.text = "Net na ho to Noor band rahe: " + (if (prefs().getBoolean("netguard", false)) "ON" else "OFF") + "  (dabakar badlein)"
         gateBtn.text = "Live mein awaaz filter (door ki awaaz band): " + when (prefs().getInt("gate", 900)) { 0 -> "BAND"; 600 -> "HALKA"; 900 -> "DARMIYANA"; else -> "SAKHT" } + "  (dabakar badlein)"
         pttBtn.text = "Sirf mic dabane par sunna (Hey Noor ke bina): " + (if (prefs().getBoolean("ptt", false)) "ON" else "OFF")

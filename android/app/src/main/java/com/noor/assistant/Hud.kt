@@ -7,6 +7,7 @@ object Hud {
     @Volatile var holo: Bitmap? = null
     @Volatile var busy = false
     @Volatile var err = ""
+    @Volatile var model: Holo3D? = null
     @Volatile var onHoloPage = false
     var listener: (() -> Unit)? = null
 
@@ -28,6 +29,13 @@ object Hud {
             b = Bitmap.createBitmap(px, w, w, Bitmap.Config.ARGB_8888)
         }
         holo = b
+        if (b != null) model = null
+        ping()
+    }
+
+    fun put3d(m: Holo3D?) {
+        model = m
+        if (m != null) holo = null
         ping()
     }
 

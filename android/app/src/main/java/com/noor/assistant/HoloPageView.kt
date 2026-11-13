@@ -17,6 +17,10 @@ class HoloPageView(ctx: Context) : View(ctx) {
     private var seen: Bitmap? = null
     private var revealAt = 0L
     private var angle = 0f
+    private var pitch = 0.18f
+    private var seenM: Holo3D? = null
+    private var mAt = 0L
+    private var lastY = 0f
     private var zoom = 1f
     private var lastX = 0f
     private var dragging = false
@@ -81,6 +85,23 @@ class HoloPageView(ctx: Context) : View(ctx) {
             c.save(); c.rotate(t * 220f + i * 50f, cxx, rp.bottom - d(10f))
             c.drawArc(RectF(cxx - d(8f), rp.bottom - d(18f), cxx + d(8f), rp.bottom - d(2f)), 0f, 250f, false, p); c.restore()
         }
+        // asli 3D model
+        val md = Hud.model
+        if (md !== seenM) { seenM = md; mAt = now; angle = 0f; zoom = 1f; pitch = 0.18f }
+        if (md != null) {
+            val side = min(w * 0.42f, h * 0.27f) * zoom
+            val build = ((now - mAt) / 3500f).coerceIn(0f, 1f)
+            if (!dragging) angle += 0.012f
+            val bob = sin(t * 1.4f) * d(5f)
+            md.draw(c, cx, foot - side * 1.15f + bob, side, angle, pitch, t, build, 1f)
+            p.style = Paint.Style.FILL; p.textAlign = Paint.Align.CENTER; p.color = Color.parseColor("#9FE8FF"); p.alpha = 230; p.textSize = d(15f)
+            c.drawText(md.name.uppercase(), cx, foot + d(46f), p)
+            p.alpha = 255
+            val xr = RectF(w - d(46f), d(14f), w - d(14f), d(46f)); p.style = Paint.Style.STROKE; p.strokeWidth = d(2f); p.color = cy
+            c.drawCircle(xr.centerX(), xr.centerY(), d(15f), p)
+            c.drawLine(xr.centerX() - d(6f), xr.centerY() - d(6f), xr.centerX() + d(6f), xr.centerY() + d(6f), p)
+            c.drawLine(xr.centerX() + d(6f), xr.centerY() - d(6f), xr.centerX() - d(6f), xr.centerY() + d(6f), p)
+        }
         // hologram
         if (hb != null) {
             val side = min(w * 0.8f, h * 0.55f) * zoom
@@ -109,7 +130,7 @@ class HoloPageView(ctx: Context) : View(ctx) {
             c.drawLine(xr.centerX() - d(6f), xr.centerY() - d(6f), xr.centerX() + d(6f), xr.centerY() + d(6f), p)
             c.drawLine(xr.centerX() + d(6f), xr.centerY() - d(6f), xr.centerX() - d(6f), xr.centerY() + d(6f), p)
         }
-        if (!Hud.busy && Hud.holo == null) {
+        if (!Hud.busy && Hud.holo == null && Hud.model == null) {
             p.style = Paint.Style.FILL; p.textAlign = Paint.Align.CENTER; p.textSize = d(14f); p.color = Color.parseColor("#9FE8FF")
             c.drawText(if (Hud.err.isNotBlank()) Hud.err else "Noor se bolein: \"Noor, tiger ka hologram banao\"", w / 2f, h * 0.22f, p)
         }
@@ -125,13 +146,14 @@ class HoloPageView(ctx: Context) : View(ctx) {
     override fun onTouchEvent(e: MotionEvent): Boolean {
         sg.onTouchEvent(e)
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> { lastX = e.x; dragging = true; moved = false }
+            MotionEvent.ACTION_DOWN -> { lastX = e.x; lastY = e.y; dragging = true; moved = false }
             MotionEvent.ACTION_MOVE -> if (!sg.isInProgress && e.pointerCount == 1 && dragging) {
                 val dx = e.x - lastX; if (abs(dx) > 2f) moved = true
                 angle += dx / width * 5f; lastX = e.x
+                pitch = (pitch + (e.y - lastY) / width * 3f).coerceIn(-1.2f, 1.2f); lastY = e.y
             }
             MotionEvent.ACTION_UP -> {
-                if (!moved && Hud.holo != null && e.x > width - d(60f) && e.y < d(60f)) onAction("holo_clear")
+                if (!moved && (Hud.holo != null || Hud.model != null) && e.x > width - d(60f) && e.y < d(60f)) onAction("holo_clear")
                 dragging = false
             }
         }
