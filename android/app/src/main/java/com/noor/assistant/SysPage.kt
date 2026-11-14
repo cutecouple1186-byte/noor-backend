@@ -232,7 +232,7 @@ class SysPage(private val ctx: Context) : FrameLayout(ctx) {
             // scan line
             p.color = Color.parseColor("#6622D3EE"); val sy = (t * 60f * d) % h
             c.drawRect(cx - r, sy, cx + r, sy + 2f * d, p)
-            postInvalidateOnAnimation()
+            postInvalidateDelayed(28)
         }
     }
 }

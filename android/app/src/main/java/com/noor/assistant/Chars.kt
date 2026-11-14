@@ -79,8 +79,12 @@ object Chars {
     private var gBmp: Bitmap? = null
     private var gPx = IntArray(0)
 
+    private var earthAt = 0L
     fun earth(size: Int, rot: Float): Bitmap? {
         if (earthTex.isEmpty()) return null
+        val nowE = System.currentTimeMillis()
+        if (gBmp != null && gSize == size && nowE - earthAt < 130) return gBmp
+        earthAt = nowE
         if (gSize != size) {
             gSize = size
             gLat = FloatArray(size * size); gLon = FloatArray(size * size); gShade = FloatArray(size * size)

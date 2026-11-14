@@ -140,7 +140,7 @@ class HoloPageView(ctx: Context) : View(ctx) {
             c.drawArc(RectF(cx - d(30f), h * 0.45f - d(30f), cx + d(30f), h * 0.45f + d(30f)), 0f, 250f, false, p)
             c.restore()
         }
-        postInvalidateOnAnimation()
+        postInvalidateDelayed(28)
     }
 
     override fun onTouchEvent(e: MotionEvent): Boolean {

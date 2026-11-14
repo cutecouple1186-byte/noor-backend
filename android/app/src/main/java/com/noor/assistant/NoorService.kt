@@ -867,7 +867,7 @@ class NoorService : Service() {
                 var img = ""
             if (pic.isNotBlank()) {
                 img = pic
-            } else if (MainActivity.resumed && !text.startsWith("(SCREEN")) {
+            } else if (MainActivity.resumed && !text.startsWith("(SCREEN") && Regex("(?i)dekh|dikh|kya hai|ye kya|yeh kya|ye kaun|hath|hand|photo|tasveer|screen|camera|samne|what is|look|this|that|देख|क्या है").containsMatchIn(text)) {
                 val latch = java.util.concurrent.CountDownLatch(1)
                 MainActivity.requestFrame {
                     img = it

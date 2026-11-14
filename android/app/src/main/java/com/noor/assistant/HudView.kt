@@ -311,7 +311,7 @@ class HudView(ctx: Context) : View(ctx) {
         p.style = Paint.Style.FILL; p.color = if (netGuard) Color.parseColor("#34D399") else Color.parseColor("#EF4444")
         c.drawCircle(rNet.right - d(7f), rNet.top + d(7f), d(3.5f), p)
         txt(c, if (netOnline) "LIVE" else "OFFLINE", rNet.centerX(), rNet.bottom - d(5f), 8.5f, if (netOnline) Color.parseColor("#34D399") else Color.parseColor("#EF4444"), Paint.Align.CENTER)
-        postInvalidateOnAnimation()
+        postInvalidateDelayed(28)
     }
 
     private fun drawMic(c: Canvas) {
