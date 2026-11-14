@@ -159,7 +159,7 @@ class NoorService : Service() {
     private val idleCheck = object : Runnable {
         override fun run() {
             if (!liveOn) return
-            if (System.currentTimeMillis() - liveLast > (if (prefs().getBoolean("callmode", true)) 240000 else 45000)) live?.end("Koi awaaz nahi aayi, Live band. Hello ${Persona.title} bolein.")
+            if (System.currentTimeMillis() - liveLast > (if (prefs().getBoolean("callmode2", false)) 240000 else 45000)) live?.end("Koi awaaz nahi aayi, Live band. Hello ${Persona.title} bolein.")
             else main.postDelayed(this, 10000)
         }
     }
@@ -468,6 +468,7 @@ class NoorService : Service() {
                 }
             }
             listen(500)
+            if (prefs().getBoolean("callmode2", false)) main.postDelayed({ if (running && !liveOn && online()) startLive() }, 1500)
         }
         if (intent?.action == ACTION_TEXT) {
             val typed = intent.getStringExtra(EXTRA_TEXT)
@@ -902,7 +903,7 @@ class NoorService : Service() {
         if (intent == "none" && slots.optBoolean("done", !reply.trim().endsWith("?"))) pendingGoal = ""
         history.add(Pair("user", userText))
         history.add(Pair("assistant", reply))
-        while (history.size > 12) history.removeAt(0)
+        while (history.size > 6) history.removeAt(0)
 
         when (intent) {
             "none", "search", "weather", "" -> say(reply)
@@ -1075,6 +1076,7 @@ class NoorService : Service() {
         val rr = t.setLanguage(want)
         if (rr == TextToSpeech.LANG_MISSING_DATA || rr == TextToSpeech.LANG_NOT_SUPPORTED) t.setLanguage(Locale.US)
         t.setPitch(if (Persona.isRox) 0.7f else 1.1f)
+        t.setSpeechRate(1.12f)
         if (t.speak(text, TextToSpeech.QUEUE_FLUSH, null, "noor") != TextToSpeech.SUCCESS) doneSpeaking()
     }
 

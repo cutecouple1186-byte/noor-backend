@@ -580,6 +580,7 @@ class MainActivity : Activity() {
     private fun buildHud(): View {
         val f = FrameLayout(this)
         hud = HudView(this)
+        hud.quality = prefs().getInt("gfx", 0)
         f.addView(hud, FrameLayout.LayoutParams(MATCH, MATCH))
         holoRox = HoloView(this); holoRox.setPersona(true)
         holoNoor = HoloView(this); holoNoor.setPersona(false)
@@ -1113,7 +1114,7 @@ class MainActivity : Activity() {
         sec("✨  GRAPHICS QUALITY", CYAN)
         val gq = LinearLayout(this); gq.orientation = LinearLayout.HORIZONTAL
         val gqs = ArrayList<TextView>()
-        fun paintGq() { val q = prefs().getInt("gfx", 1); for ((i, v) in gqs.withIndex()) { v.setTextColor(if (i == q) Color.parseColor("#04121C") else TEXT); v.background = shape(if (i == q) Color.parseColor("#22D3EE") else Color.parseColor("#0B3A5C"), 16, Color.parseColor("#22D3EE"), 1) } }
+        fun paintGq() { val q = prefs().getInt("gfx", 0); for ((i, v) in gqs.withIndex()) { v.setTextColor(if (i == q) Color.parseColor("#04121C") else TEXT); v.background = shape(if (i == q) Color.parseColor("#22D3EE") else Color.parseColor("#0B3A5C"), 16, Color.parseColor("#22D3EE"), 1) } }
         for ((i, nm) in listOf("LOW", "MEDIUM", "ULTRA").withIndex()) {
             val v = tv(nm, 13f, TEXT, true); v.gravity = Gravity.CENTER; v.setPadding(dp(6), dp(10), dp(6), dp(10))
             v.setOnClickListener { prefs().edit().putInt("gfx", i).apply(); hud.quality = i; paintGq() }
@@ -1189,7 +1190,7 @@ class MainActivity : Activity() {
         }
         cur.addView(netBtn)
         callBtn = button("") {
-            prefs().edit().putBoolean("callmode", !prefs().getBoolean("callmode", true)).apply()
+            prefs().edit().putBoolean("callmode2", !prefs().getBoolean("callmode2", false)).apply()
             refreshSettings()
         }
         cur.addView(callBtn)
@@ -1296,7 +1297,7 @@ class MainActivity : Activity() {
             "\nApps kholna: ${m(overlay)}   Background: ${m(battery)}"
         val auto = prefs().getBoolean("autostart", true)
         fastBtn.text = "Tez jawab (phone ki awaaz, Live ke bina): " + (if (prefs().getBoolean("fastvoice", true)) "ON" else "OFF (Gemini awaaz, thodi der se)") + "  (dabakar badlein)"
-        callBtn.text = "Call jaisi baat (Live, mic ON hote hi): " + (if (prefs().getBoolean("callmode", true)) "ON" else "OFF") + "  (dabakar badlein)"
+        callBtn.text = "Call jaisi baat (Live, mic ON hote hi): " + (if (prefs().getBoolean("callmode2", false)) "ON" else "OFF") + "  (dabakar badlein)"
         netBtn.text = "Net na ho to Noor band rahe: " + (if (prefs().getBoolean("netguard", false)) "ON" else "OFF") + "  (dabakar badlein)"
         gateBtn.text = "Live mein awaaz filter (door ki awaaz band): " + when (prefs().getInt("gate", 900)) { 0 -> "BAND"; 600 -> "HALKA"; 900 -> "DARMIYANA"; else -> "SAKHT" } + "  (dabakar badlein)"
         pttBtn.text = "Sirf mic dabane par sunna (Hey Noor ke bina): " + (if (prefs().getBoolean("ptt", false)) "ON" else "OFF")

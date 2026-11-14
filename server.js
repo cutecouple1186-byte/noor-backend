@@ -159,7 +159,7 @@ async function llmOne(m, messages) {
   const tryEfforts = effortOk[m] !== undefined ? [effortOk[m]] : IS_GEMINI ? ["none", "low", ""] : [""];
   let r;
   for (const eff of tryEfforts) {
-    const body = { model: m, messages, temperature: 0.6, max_tokens: 700, response_format: { type: "json_object" } };
+    const body = { model: m, messages, temperature: 0.6, max_tokens: /wireframe hologram/.test(String((messages[0] && messages[0].content) || "")) ? 3000 : 350, response_format: { type: "json_object" } };
     if (eff) body.reasoning_effort = eff;
     r = await fetch(`${BASE}/chat/completions`, {
       method: "POST",

@@ -28,7 +28,7 @@ class HudView(ctx: Context) : View(ctx) {
     var torchOn = false
     var bubble = ""
     var liveOn = false
-    var quality = 1
+    var quality = 0
     var netGuard = false
     var netOnline = true
     private val rNet = RectF()
@@ -222,7 +222,7 @@ class HudView(ctx: Context) : View(ctx) {
 
         // ---- globe (asli Earth)
         val gs = rGlobe.width()
-        val eb = Chars.earth(max(64, (gs / resources.displayMetrics.density * 1.1f).toInt().coerceAtMost(150)), t * 0.35f)
+        val eb = Chars.earth(max(64, (gs / resources.displayMetrics.density * 1.1f).toInt().coerceAtMost(if (quality == 0) 96 else 150)), if (quality == 0) 0.9f else t * 0.35f)
         p.style = Paint.Style.FILL; p.shader = RadialGradient(rGlobe.centerX(), rGlobe.centerY(), gs * 0.62f, Color.parseColor("#4422D3EE"), Color.TRANSPARENT, Shader.TileMode.CLAMP)
         c.drawCircle(rGlobe.centerX(), rGlobe.centerY(), gs * 0.62f, p); p.shader = null
         if (eb != null) c.drawBitmap(eb, null, rGlobe, p)
@@ -311,7 +311,7 @@ class HudView(ctx: Context) : View(ctx) {
         p.style = Paint.Style.FILL; p.color = if (netGuard) Color.parseColor("#34D399") else Color.parseColor("#EF4444")
         c.drawCircle(rNet.right - d(7f), rNet.top + d(7f), d(3.5f), p)
         txt(c, if (netOnline) "LIVE" else "OFFLINE", rNet.centerX(), rNet.bottom - d(5f), 8.5f, if (netOnline) Color.parseColor("#34D399") else Color.parseColor("#EF4444"), Paint.Align.CENTER)
-        postInvalidateDelayed(28)
+        postInvalidateDelayed(if (quality == 0) 45L else 28L)
     }
 
     private fun drawMic(c: Canvas) {
