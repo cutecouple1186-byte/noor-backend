@@ -597,6 +597,8 @@ class NoorService : Service() {
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
             .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            .putExtra("android.speech.extra.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 700L)
+            .putExtra("android.speech.extra.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 500L)
             .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
             .putExtra("android.speech.extra.ADDITIONAL_LANGUAGES", arrayOf("ur-PK", "en-IN"))
             .putExtra("android.speech.extras.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 1100L)
@@ -994,6 +996,7 @@ class NoorService : Service() {
         } catch (e: Exception) {
         }
         note(text)
+        if (prefs().getBoolean("fastvoice", true)) { speakLocal(text); return }
         val base = prefs().getString("url", MainActivity.DEFAULT_URL)!!.trim().trimEnd('/')
         val token = prefs().getString("token", "")!!
         Thread {
@@ -1012,7 +1015,7 @@ class NoorService : Service() {
             main.post {
                 if (!running) return@post
                 val f0 = files[0]
-                if (f0 == null) { speakLocal(text); return@post }
+                if (f0 == null) { Chat.add("noor", "(Gemini awaaz nahi aayi: ${Net.ttsErr}. Phone ki awaaz.)"); speakLocal(text); return@post }
                 fun chain(i: Int) {
                     val f = files[i] ?: return speakLocal(parts.drop(i).joinToString(" "))
                     val nxt: (() -> Unit)? = if (i + 1 < parts.size) ({
@@ -1062,7 +1065,6 @@ class NoorService : Service() {
 
     private fun speakLocal(text: String) {
         val t = tts
-        Chat.add("noor", "(Noor ki awaaz server se nahi aayi: ${Net.ttsErr}. Phone ki awaaz chala rahi hoon.)")
         if (!ttsReady || t == null) {
             Chat.add("noor", "(Phone mein Text-to-speech engine nahi mila. Settings > Language > Text-to-speech mein Google engine ON karein.)")
             doneSpeaking()

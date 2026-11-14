@@ -88,6 +88,7 @@ class LiveSession(
                 val list = ArrayList<Pair<String, Int>>()
                 for (i in 0 until ms.length()) {
                     list.add(Pair(ms.getString(i), 0))
+                    list.add(Pair(ms.getString(i), 2))
                     list.add(Pair(ms.getString(i), 1))
                 }
                 combos = list
@@ -145,7 +146,14 @@ class LiveSession(
             .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", JSONArray().put(fn).put(fnSearch).put(fnPersona))))
             .put("inputAudioTranscription", JSONObject())
             .put("outputAudioTranscription", JSONObject())
-        if (shape == 0) {
+        if (shape == 0 || shape == 1) {
+            su.put("realtimeInputConfig", JSONObject().put("automaticActivityDetection", JSONObject()
+                .put("startOfSpeechSensitivity", "START_SENSITIVITY_HIGH")
+                .put("endOfSpeechSensitivity", "END_SENSITIVITY_HIGH")
+                .put("prefixPaddingMs", 120)
+                .put("silenceDurationMs", 450)))
+        }
+        if (shape == 0 || shape == 2) {
             su.put("generationConfig", JSONObject().put("responseModalities", JSONArray().put("AUDIO")).put("speechConfig", speech))
         } else {
             su.put("responseModalities", JSONArray().put("AUDIO")).put("speechConfig", speech)
@@ -308,14 +316,15 @@ class LiveSession(
         Thread {
             try {
                 r.startRecording()
-                val buf = ByteArray(3200)
+                val buf = ByteArray(1600)
+                val pre = java.util.ArrayDeque<ByteArray>()
                 var floor = 250.0
                 var openUntil = 0L
                 var loudRun = 0
                 while (!closed) {
                     val n = r.read(buf, 0, buf.size)
                     if (n <= 0) continue
-                    if (halfDuplex && (playing || q.isNotEmpty() || System.currentTimeMillis() - lastAudioAt < 700)) continue
+                    if (halfDuplex && (playing || q.isNotEmpty() || System.currentTimeMillis() - lastAudioAt < 300)) continue
                     // Awaaz filter: sirf paas se, zor se bolne wali awaaz aage jaye. Door ka music/TV chup.
                     if (gateMin > 0) {
                         var sum = 0.0
@@ -328,8 +337,18 @@ class LiveSession(
                         val rms = Math.sqrt(sum / maxOf(1, n / 2))
                         val now = System.currentTimeMillis()
                         if (rms < floor * 2) floor = maxOf(80.0, floor * 0.95 + rms * 0.05)
-                        if (rms > maxOf(floor * 3.5, gateMin.toDouble())) { loudRun++; if (loudRun >= 2) openUntil = now + 700 } else loudRun = 0
-                        if (now > openUntil) java.util.Arrays.fill(buf, 0, n, 0.toByte())
+                        val wasClosed = now > openUntil
+                        if (rms > maxOf(floor * 3.5, gateMin.toDouble())) { loudRun++; if (loudRun >= 2) openUntil = now + 900 } else loudRun = 0
+                        if (now > openUntil) {
+                            // band: aakhri 4 tukde yaad rakho taake bolne ki shuruaat kat na jaye
+                            pre.addLast(buf.copyOf(n)); while (pre.size > 4) pre.removeFirst()
+                            java.util.Arrays.fill(buf, 0, n, 0.toByte())
+                        } else if (wasClosed) {
+                            while (pre.isNotEmpty()) {
+                                val pb = pre.removeFirst()
+                                ws?.send(JSONObject().put("realtimeInput", JSONObject().put("audio", JSONObject().put("data", Base64.encodeToString(pb, 0, pb.size, Base64.NO_WRAP)).put("mimeType", "audio/pcm;rate=16000"))).toString())
+                            }
+                        }
                     }
                     val msg = JSONObject().put(
                         "realtimeInput",

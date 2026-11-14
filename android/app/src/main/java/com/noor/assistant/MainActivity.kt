@@ -126,6 +126,7 @@ class MainActivity : Activity() {
     private lateinit var gateBtn: Button
     private lateinit var netBtn: Button
     private lateinit var callBtn: Button
+    private lateinit var fastBtn: Button
     private lateinit var liveBtn: android.widget.TextView
     private lateinit var urlEt: EditText
     private lateinit var tokEt: EditText
@@ -1192,6 +1193,11 @@ class MainActivity : Activity() {
             refreshSettings()
         }
         cur.addView(callBtn)
+        fastBtn = button("") {
+            prefs().edit().putBoolean("fastvoice", !prefs().getBoolean("fastvoice", true)).apply()
+            refreshSettings()
+        }
+        cur.addView(fastBtn)
         autoBtn = button("") {
             prefs().edit().putBoolean("autostart", !prefs().getBoolean("autostart", true)).apply()
             refreshSettings()
@@ -1289,6 +1295,7 @@ class MainActivity : Activity() {
         statusTv.text = "Mic: ${m(mic)}   Camera: ${m(cam)}   Contacts: ${m(contacts)}" +
             "\nApps kholna: ${m(overlay)}   Background: ${m(battery)}"
         val auto = prefs().getBoolean("autostart", true)
+        fastBtn.text = "Tez jawab (phone ki awaaz, Live ke bina): " + (if (prefs().getBoolean("fastvoice", true)) "ON" else "OFF (Gemini awaaz, thodi der se)") + "  (dabakar badlein)"
         callBtn.text = "Call jaisi baat (Live, mic ON hote hi): " + (if (prefs().getBoolean("callmode", true)) "ON" else "OFF") + "  (dabakar badlein)"
         netBtn.text = "Net na ho to Noor band rahe: " + (if (prefs().getBoolean("netguard", false)) "ON" else "OFF") + "  (dabakar badlein)"
         gateBtn.text = "Live mein awaaz filter (door ki awaaz band): " + when (prefs().getInt("gate", 900)) { 0 -> "BAND"; 600 -> "HALKA"; 900 -> "DARMIYANA"; else -> "SAKHT" } + "  (dabakar badlein)"
